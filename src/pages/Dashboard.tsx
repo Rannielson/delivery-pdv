@@ -1,7 +1,10 @@
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { 
   TrendingUp, 
   DollarSign, 
@@ -10,16 +13,29 @@ import {
   MapPin,
   Calendar,
   Activity,
-  Star
+  Star,
+  Crown
 } from "lucide-react";
 
 export default function Dashboard() {
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
   const { data: totalOrders } = useQuery({
-    queryKey: ["total-orders"],
+    queryKey: ["total-orders", startDate, endDate],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("orders")
-        .select("total_amount", { count: "exact" });
+        .select("total_amount");
+      
+      if (startDate) {
+        query = query.gte("created_at", startDate);
+      }
+      if (endDate) {
+        query = query.lte("created_at", endDate + "T23:59:59");
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return {
         count: data?.length || 0,
@@ -50,16 +66,24 @@ export default function Dashboard() {
     },
   });
 
-  const { data: topNeighborhood } = useQuery({
-    queryKey: ["top-neighborhood"],
+  const { data: neighborhoodRanking } = useQuery({
+    queryKey: ["neighborhood-ranking", startDate, endDate],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("orders")
         .select(`
           neighborhood_id,
           neighborhoods(name)
-        `)
-        .limit(1000);
+        `);
+      
+      if (startDate) {
+        query = query.gte("created_at", startDate);
+      }
+      if (endDate) {
+        query = query.lte("created_at", endDate + "T23:59:59");
+      }
+      
+      const { data, error } = await query;
       
       if (error) throw error;
       
@@ -69,21 +93,114 @@ export default function Dashboard() {
         return acc;
       }, {});
       
-      const topNeighborhood = Object.entries(neighborhoods || {})
-        .sort(([,a], [,b]) => (b as number) - (a as number))[0];
-      
-      return topNeighborhood ? {
-        name: topNeighborhood[0] as string,
-        orders: topNeighborhood[1] as number
-      } : null;
+      return Object.entries(neighborhoods || {})
+        .sort(([,a], [,b]) => (b as number) - (a as number))
+        .slice(0, 5)
+        .map(([name, orders], index) => ({
+          name: name as string,
+          orders: orders as number,
+          position: index + 1
+        }));
     },
   });
+
+  const { data: customerRanking } = useQuery({
+    queryKey: ["customer-ranking", startDate, endDate],
+    queryFn: async () => {
+      let query = supabase
+        .from("orders")
+        .select(`
+          customer_id,
+          customers(name)
+        `);
+      
+      if (startDate) {
+        query = query.gte("created_at", startDate);
+      }
+      if (endDate) {
+        query = query.lte("created_at", endDate + "T23:59:59");
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) throw error;
+      
+      const customers = data?.reduce((acc: any, order) => {
+        const customerName = (order as any).customers?.name || 'Desconhecido';
+        acc[customerName] = (acc[customerName] || 0) + 1;
+        return acc;
+      }, {});
+      
+      return Object.entries(customers || {})
+        .sort(([,a], [,b]) => (b as number) - (a as number))
+        .slice(0, 5)
+        .map(([name, orders], index) => ({
+          name: name as string,
+          orders: orders as number,
+          position: index + 1
+        }));
+    },
+  });
+
+  const { data: statusRanking } = useQuery({
+    queryKey: ["status-ranking", startDate, endDate],
+    queryFn: async () => {
+      let query = supabase
+        .from("orders")
+        .select("status");
+      
+      if (startDate) {
+        query = query.gte("created_at", startDate);
+      }
+      if (endDate) {
+        query = query.lte("created_at", endDate + "T23:59:59");
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) throw error;
+      
+      const statuses = data?.reduce((acc: any, order) => {
+        const status = order.status || 'Desconhecido';
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+      }, {});
+      
+      return Object.entries(statuses || {})
+        .sort(([,a], [,b]) => (b as number) - (a as number))
+        .map(([status, count]) => ({
+          status: status as string,
+          count: count as number,
+          percentage: ((count as number) / (data?.length || 1) * 100).toFixed(1)
+        }));
+    },
+  });
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'em_producao': return 'bg-blue-100 text-blue-800';
+      case 'a_caminho': return 'bg-purple-100 text-purple-800';
+      case 'entregue': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'pending': return 'Pedido Aberto';
+      case 'em_producao': return 'Em Produção';
+      case 'a_caminho': return 'A Caminho';
+      case 'entregue': return 'Entregue';
+      default: return status;
+    }
+  };
 
   const statsCards = [
     {
       title: "Vendas Totais",
       value: `R$ ${(totalOrders?.total || 0).toFixed(2)}`,
-      description: "Total em vendas do mês",
+      description: "Total em vendas",
       icon: DollarSign,
       color: "from-green-500 to-emerald-600",
       iconBg: "bg-green-100",
@@ -133,6 +250,39 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Filtros de Data */}
+      <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-purple-700">
+            <Calendar className="w-5 h-5" />
+            Filtros de Data
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Data Inicial</Label>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="border-purple-200 focus:border-purple-400"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Data Final</Label>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="border-purple-200 focus:border-purple-400"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Cards de Estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statsCards.map((card, index) => (
           <Card key={index} className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-white/80 backdrop-blur-sm hover:scale-105">
@@ -156,32 +306,39 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Rankings */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        {/* Ranking de Bairros */}
         <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-purple-700">
               <MapPin className="w-5 h-5" />
-              Bairro Mais Vendido
+              Top 5 Bairros
             </CardTitle>
             <CardDescription>
-              Região com maior volume de pedidos
+              Bairros com maior volume de pedidos
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {topNeighborhood ? (
-              <div className="space-y-4">
-                <div className="text-2xl font-bold text-purple-600">
-                  {topNeighborhood.name}
-                </div>
-                <div className="text-sm text-gray-600">
-                  {topNeighborhood.orders} pedidos realizados
-                </div>
-                <div className="w-full bg-purple-100 rounded-full h-2">
-                  <div 
-                    className="bg-gradient-to-r from-purple-500 to-violet-600 h-2 rounded-full transition-all duration-1000" 
-                    style={{ width: "75%" }}
-                  ></div>
-                </div>
+            {neighborhoodRanking && neighborhoodRanking.length > 0 ? (
+              <div className="space-y-3">
+                {neighborhoodRanking.map((neighborhood, index) => (
+                  <div key={neighborhood.name} className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
+                        index === 0 ? 'bg-yellow-500' : 
+                        index === 1 ? 'bg-gray-400' : 
+                        index === 2 ? 'bg-amber-600' : 'bg-purple-500'
+                      }`}>
+                        {index === 0 ? <Crown className="w-4 h-4" /> : neighborhood.position}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-purple-800">{neighborhood.name}</div>
+                        <div className="text-sm text-gray-600">{neighborhood.orders} pedidos</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="text-gray-500 text-center py-8">
@@ -192,40 +349,81 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
+        {/* Ranking de Clientes */}
+        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-purple-700">
+              <Users className="w-5 h-5" />
+              Top 5 Clientes
+            </CardTitle>
+            <CardDescription>
+              Clientes com mais pedidos
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {customerRanking && customerRanking.length > 0 ? (
+              <div className="space-y-3">
+                {customerRanking.map((customer, index) => (
+                  <div key={customer.name} className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
+                        index === 0 ? 'bg-yellow-500' : 
+                        index === 1 ? 'bg-gray-400' : 
+                        index === 2 ? 'bg-amber-600' : 'bg-purple-500'
+                      }`}>
+                        {index === 0 ? <Crown className="w-4 h-4" /> : customer.position}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-purple-800">{customer.name}</div>
+                        <div className="text-sm text-gray-600">{customer.orders} pedidos</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-gray-500 text-center py-8">
+                <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>Nenhum cliente encontrado</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Ranking por Status */}
         <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-purple-700">
               <Activity className="w-5 h-5" />
-              Atividade Recente
+              Status dos Pedidos
             </CardTitle>
             <CardDescription>
-              Últimas movimentações do sistema
+              Distribuição por status
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg">
-                <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
-                <div className="text-sm">
-                  <div className="font-medium text-gray-900">Sistema inicializado</div>
-                  <div className="text-gray-500">Banco de dados conectado</div>
-                </div>
+            {statusRanking && statusRanking.length > 0 ? (
+              <div className="space-y-3">
+                {statusRanking.map((status) => (
+                  <div key={status.status} className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(status.status)}`}>
+                        {getStatusLabel(status.status)}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold text-purple-800">{status.count}</div>
+                      <div className="text-sm text-gray-600">{status.percentage}%</div>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <div className="text-sm">
-                  <div className="font-medium text-gray-900">Dados carregados</div>
-                  <div className="text-gray-500">Produtos e clientes sincronizados</div>
-                </div>
+            ) : (
+              <div className="text-gray-500 text-center py-8">
+                <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>Nenhum pedido encontrado</p>
               </div>
-              <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <div className="text-sm">
-                  <div className="font-medium text-gray-900">Dashboard atualizado</div>
-                  <div className="text-gray-500">Métricas em tempo real</div>
-                </div>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>

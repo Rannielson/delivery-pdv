@@ -6,8 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, MapPin, DollarSign } from "lucide-react";
+import { Plus, MapPin, DollarSign, Edit, Trash2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function Neighborhoods() {
@@ -15,6 +16,8 @@ export default function Neighborhoods() {
     name: "",
     delivery_fee: ""
   });
+  const [editingNeighborhood, setEditingNeighborhood] = useState<any>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -53,6 +56,49 @@ export default function Neighborhoods() {
     },
   });
 
+  const updateNeighborhoodMutation = useMutation({
+    mutationFn: async (neighborhood: any) => {
+      const { data, error } = await supabase
+        .from("neighborhoods")
+        .update({
+          name: neighborhood.name,
+          delivery_fee: parseFloat(neighborhood.delivery_fee),
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", neighborhood.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["neighborhoods"] });
+      setEditingNeighborhood(null);
+      setIsEditDialogOpen(false);
+      toast.success("Bairro atualizado com sucesso!");
+    },
+    onError: (error) => {
+      toast.error("Erro ao atualizar bairro: " + error.message);
+    },
+  });
+
+  const deleteNeighborhoodMutation = useMutation({
+    mutationFn: async (neighborhoodId: string) => {
+      const { error } = await supabase
+        .from("neighborhoods")
+        .delete()
+        .eq("id", neighborhoodId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["neighborhoods"] });
+      toast.success("Bairro excluído com sucesso!");
+    },
+    onError: (error) => {
+      toast.error("Erro ao excluir bairro: " + error.message);
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newNeighborhood.name || !newNeighborhood.delivery_fee) {
@@ -60,6 +106,28 @@ export default function Neighborhoods() {
       return;
     }
     createNeighborhoodMutation.mutate(newNeighborhood);
+  };
+
+  const handleEdit = (neighborhood: any) => {
+    setEditingNeighborhood({
+      ...neighborhood,
+      delivery_fee: neighborhood.delivery_fee.toString()
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdate = () => {
+    if (!editingNeighborhood.name || !editingNeighborhood.delivery_fee) {
+      toast.error("Preencha todos os campos");
+      return;
+    }
+    updateNeighborhoodMutation.mutate(editingNeighborhood);
+  };
+
+  const handleDelete = (neighborhoodId: string) => {
+    if (confirm("Tem certeza que deseja excluir este bairro?")) {
+      deleteNeighborhoodMutation.mutate(neighborhoodId);
+    }
   };
 
   return (
@@ -140,7 +208,8 @@ export default function Neighborhoods() {
                     <TableHead>Nome</TableHead>
                     <TableHead>Taxa de Entrega</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Data de Cadastro</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -162,6 +231,26 @@ export default function Neighborhoods() {
                       <TableCell>
                         {new Date(neighborhood.created_at).toLocaleDateString('pt-BR')}
                       </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(neighborhood)}
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(neighborhood.id)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -170,6 +259,62 @@ export default function Neighborhoods() {
           </Card>
         </div>
       </div>
+
+      {/* Dialog para editar bairro */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Bairro</DialogTitle>
+            <DialogDescription>
+              Altere as informações do bairro
+            </DialogDescription>
+          </DialogHeader>
+          {editingNeighborhood && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  Nome do Bairro
+                </Label>
+                <Input
+                  placeholder="Ex: Centro, Zona Norte..."
+                  value={editingNeighborhood.name}
+                  onChange={(e) => setEditingNeighborhood(prev => ({ ...prev, name: e.target.value }))}
+                  className="border-purple-200 focus:border-purple-400"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4" />
+                  Taxa de Entrega (R$)
+                </Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={editingNeighborhood.delivery_fee}
+                  onChange={(e) => setEditingNeighborhood(prev => ({ ...prev, delivery_fee: e.target.value }))}
+                  className="border-purple-200 focus:border-purple-400"
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleUpdate}
+                  disabled={updateNeighborhoodMutation.isPending}
+                  className="bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700"
+                >
+                  {updateNeighborhoodMutation.isPending ? "Salvando..." : "Salvar"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

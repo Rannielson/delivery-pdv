@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Package, DollarSign, FileText } from "lucide-react";
+import { Plus, Package, DollarSign, FileText, Edit, Trash2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface ProductItem {
@@ -25,6 +26,8 @@ export default function Products() {
   });
   const [selectedItem, setSelectedItem] = useState("");
   const [itemQuantity, setItemQuantity] = useState(1);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -52,6 +55,50 @@ export default function Products() {
       const { data, error } = await supabase.from("items").select("*");
       if (error) throw error;
       return data;
+    },
+  });
+
+  const updateProductMutation = useMutation({
+    mutationFn: async (product: any) => {
+      const { data, error } = await supabase
+        .from("products")
+        .update({
+          name: product.name,
+          description: product.description,
+          price: parseFloat(product.price),
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", product.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      setEditingProduct(null);
+      setIsEditDialogOpen(false);
+      toast.success("Produto atualizado com sucesso!");
+    },
+    onError: (error) => {
+      toast.error("Erro ao atualizar produto: " + error.message);
+    },
+  });
+
+  const deleteProductMutation = useMutation({
+    mutationFn: async (productId: string) => {
+      const { error } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", productId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success("Produto excluído com sucesso!");
+    },
+    onError: (error) => {
+      toast.error("Erro ao excluir produto: " + error.message);
     },
   });
 
@@ -128,6 +175,28 @@ export default function Products() {
       return;
     }
     createProductMutation.mutate(newProduct);
+  };
+
+  const handleEdit = (product: any) => {
+    setEditingProduct({
+      ...product,
+      price: product.price.toString()
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdate = () => {
+    if (!editingProduct.name || !editingProduct.price) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+    updateProductMutation.mutate(editingProduct);
+  };
+
+  const handleDelete = (productId: string) => {
+    if (confirm("Tem certeza que deseja excluir este produto?")) {
+      deleteProductMutation.mutate(productId);
+    }
   };
 
   const calculateItemsCost = () => {
@@ -298,6 +367,7 @@ export default function Products() {
                     <TableHead>Itens</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Data</TableHead>
+                    <TableHead>Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -331,6 +401,26 @@ export default function Products() {
                       <TableCell>
                         {new Date(product.created_at).toLocaleDateString('pt-BR')}
                       </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(product)}
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(product.id)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -339,6 +429,75 @@ export default function Products() {
           </Card>
         </div>
       </div>
+
+      {/* Dialog para editar produto */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Produto</DialogTitle>
+            <DialogDescription>
+              Altere as informações do produto
+            </DialogDescription>
+          </DialogHeader>
+          {editingProduct && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Package className="w-4 h-4" />
+                  Nome do Produto
+                </Label>
+                <Input
+                  placeholder="Ex: Açaí Tradicional 300ml"
+                  value={editingProduct.name}
+                  onChange={(e) => setEditingProduct(prev => ({ ...prev, name: e.target.value }))}
+                  className="border-purple-200 focus:border-purple-400"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Descrição
+                </Label>
+                <Textarea
+                  placeholder="Descrição do produto..."
+                  value={editingProduct.description || ""}
+                  onChange={(e) => setEditingProduct(prev => ({ ...prev, description: e.target.value }))}
+                  className="border-purple-200 focus:border-purple-400"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4" />
+                  Preço de Venda (R$)
+                </Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={editingProduct.price}
+                  onChange={(e) => setEditingProduct(prev => ({ ...prev, price: e.target.value }))}
+                  className="border-purple-200 focus:border-purple-400"
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleUpdate}
+                  disabled={updateProductMutation.isPending}
+                  className="bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700"
+                >
+                  {updateProductMutation.isPending ? "Salvando..." : "Salvar"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

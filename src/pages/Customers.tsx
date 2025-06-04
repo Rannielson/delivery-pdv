@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Users, Phone, MapPin, Calendar } from "lucide-react";
+import { Plus, Users, Phone, MapPin, Calendar, Edit, Trash2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function Customers() {
@@ -17,6 +18,8 @@ export default function Customers() {
     phone: "",
     neighborhood_id: ""
   });
+  const [editingCustomer, setEditingCustomer] = useState<any>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -64,6 +67,50 @@ export default function Customers() {
     },
   });
 
+  const updateCustomerMutation = useMutation({
+    mutationFn: async (customer: any) => {
+      const { data, error } = await supabase
+        .from("customers")
+        .update({
+          name: customer.name,
+          phone: customer.phone,
+          neighborhood_id: customer.neighborhood_id,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", customer.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      setEditingCustomer(null);
+      setIsEditDialogOpen(false);
+      toast.success("Cliente atualizado com sucesso!");
+    },
+    onError: (error) => {
+      toast.error("Erro ao atualizar cliente: " + error.message);
+    },
+  });
+
+  const deleteCustomerMutation = useMutation({
+    mutationFn: async (customerId: string) => {
+      const { error } = await supabase
+        .from("customers")
+        .delete()
+        .eq("id", customerId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      toast.success("Cliente excluído com sucesso!");
+    },
+    onError: (error) => {
+      toast.error("Erro ao excluir cliente: " + error.message);
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCustomer.name || !newCustomer.phone) {
@@ -71,6 +118,25 @@ export default function Customers() {
       return;
     }
     createCustomerMutation.mutate(newCustomer);
+  };
+
+  const handleEdit = (customer: any) => {
+    setEditingCustomer(customer);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdate = () => {
+    if (!editingCustomer.name || !editingCustomer.phone) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+    updateCustomerMutation.mutate(editingCustomer);
+  };
+
+  const handleDelete = (customerId: string) => {
+    if (confirm("Tem certeza que deseja excluir este cliente?")) {
+      deleteCustomerMutation.mutate(customerId);
+    }
   };
 
   return (
@@ -170,6 +236,7 @@ export default function Customers() {
                     <TableHead>Bairro</TableHead>
                     <TableHead>Último Pedido</TableHead>
                     <TableHead>Cadastro</TableHead>
+                    <TableHead>Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -191,6 +258,26 @@ export default function Customers() {
                       <TableCell>
                         {new Date(customer.created_at).toLocaleDateString('pt-BR')}
                       </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(customer)}
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(customer.id)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -199,6 +286,82 @@ export default function Customers() {
           </Card>
         </div>
       </div>
+
+      {/* Dialog para editar cliente */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Cliente</DialogTitle>
+            <DialogDescription>
+              Altere as informações do cliente
+            </DialogDescription>
+          </DialogHeader>
+          {editingCustomer && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  Nome *
+                </Label>
+                <Input
+                  placeholder="Nome do cliente"
+                  value={editingCustomer.name}
+                  onChange={(e) => setEditingCustomer(prev => ({ ...prev, name: e.target.value }))}
+                  className="border-purple-200 focus:border-purple-400"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Phone className="w-4 h-4" />
+                  Telefone *
+                </Label>
+                <Input
+                  placeholder="(11) 99999-9999"
+                  value={editingCustomer.phone}
+                  onChange={(e) => setEditingCustomer(prev => ({ ...prev, phone: e.target.value }))}
+                  className="border-purple-200 focus:border-purple-400"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  Bairro
+                </Label>
+                <Select 
+                  value={editingCustomer.neighborhood_id || ""} 
+                  onValueChange={(value) => setEditingCustomer(prev => ({ ...prev, neighborhood_id: value }))}
+                >
+                  <SelectTrigger className="border-purple-200 focus:border-purple-400">
+                    <SelectValue placeholder="Selecione o bairro" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {neighborhoods?.map((neighborhood) => (
+                      <SelectItem key={neighborhood.id} value={neighborhood.id}>
+                        {neighborhood.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleUpdate}
+                  disabled={updateCustomerMutation.isPending}
+                  className="bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700"
+                >
+                  {updateCustomerMutation.isPending ? "Salvando..." : "Salvar"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

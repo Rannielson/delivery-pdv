@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, ShoppingCart, User, MapPin, CreditCard, FileText } from "lucide-react";
+import { Plus, ShoppingCart, User, MapPin, CreditCard, FileText, Edit, Trash2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface OrderItem {
@@ -29,6 +29,8 @@ export default function Orders() {
   });
   const [selectedProduct, setSelectedProduct] = useState("");
   const [quantity, setQuantity] = useState(1);
+  const [editingOrder, setEditingOrder] = useState<any>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -82,6 +84,45 @@ export default function Orders() {
       const { data, error } = await supabase.from("products").select("*");
       if (error) throw error;
       return data;
+    },
+  });
+
+  const updateOrderStatusMutation = useMutation({
+    mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
+      const { data, error } = await supabase
+        .from("orders")
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq("id", orderId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      toast.success("Status do pedido atualizado com sucesso!");
+      setEditingOrder(null);
+      setIsEditDialogOpen(false);
+    },
+    onError: (error) => {
+      toast.error("Erro ao atualizar status: " + error.message);
+    },
+  });
+
+  const deleteOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const { error } = await supabase
+        .from("orders")
+        .delete()
+        .eq("id", orderId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      toast.success("Pedido excluído com sucesso!");
+    },
+    onError: (error) => {
+      toast.error("Erro ao excluir pedido: " + error.message);
     },
   });
 
@@ -180,6 +221,45 @@ export default function Orders() {
     }
 
     createOrderMutation.mutate(newOrder);
+  };
+
+  const handleEditOrder = (order: any) => {
+    setEditingOrder(order);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateStatus = () => {
+    if (!editingOrder || !editingOrder.status) return;
+    updateOrderStatusMutation.mutate({
+      orderId: editingOrder.id,
+      status: editingOrder.status
+    });
+  };
+
+  const handleDeleteOrder = (orderId: string) => {
+    if (confirm("Tem certeza que deseja excluir este pedido?")) {
+      deleteOrderMutation.mutate(orderId);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'em_producao': return 'bg-blue-100 text-blue-800';
+      case 'a_caminho': return 'bg-purple-100 text-purple-800';
+      case 'entregue': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'pending': return 'Pedido Aberto';
+      case 'em_producao': return 'Em Produção';
+      case 'a_caminho': return 'A Caminho';
+      case 'entregue': return 'Entregue';
+      default: return status;
+    }
   };
 
   const totalOrder = newOrder.items.reduce((sum, item) => sum + item.total_price, 0);
@@ -397,6 +477,7 @@ export default function Orders() {
                 <TableHead>Total</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Data</TableHead>
+                <TableHead>Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -411,12 +492,32 @@ export default function Orders() {
                     R$ {order.total_amount.toFixed(2)}
                   </TableCell>
                   <TableCell>
-                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs">
-                      {order.status}
+                    <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(order.status)}`}>
+                      {getStatusLabel(order.status)}
                     </span>
                   </TableCell>
                   <TableCell>
                     {new Date(order.created_at).toLocaleDateString('pt-BR')}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditOrder(order)}
+                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteOrder(order.id)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -424,6 +525,55 @@ export default function Orders() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Dialog para editar status */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Status do Pedido</DialogTitle>
+            <DialogDescription>
+              Altere o status do pedido selecionado
+            </DialogDescription>
+          </DialogHeader>
+          {editingOrder && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Cliente</Label>
+                <Input value={(editingOrder as any).customers?.name || ''} disabled />
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select 
+                  value={editingOrder.status} 
+                  onValueChange={(value) => setEditingOrder(prev => ({ ...prev, status: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pedido Aberto</SelectItem>
+                    <SelectItem value="em_producao">Em Produção</SelectItem>
+                    <SelectItem value="a_caminho">A Caminho</SelectItem>
+                    <SelectItem value="entregue">Entregue</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleUpdateStatus}
+                  disabled={updateOrderStatusMutation.isPending}
+                  className="bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700"
+                >
+                  {updateOrderStatusMutation.isPending ? "Salvando..." : "Salvar"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
