@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,73 +8,79 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Package, DollarSign, Tag } from "lucide-react";
+import { Plus, Users, Phone, MapPin, Calendar } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-export default function Items() {
-  const [newItem, setNewItem] = useState({
+export default function Customers() {
+  const [newCustomer, setNewCustomer] = useState({
     name: "",
-    price: "",
-    category: ""
+    phone: "",
+    neighborhood_id: ""
   });
 
   const queryClient = useQueryClient();
 
-  const { data: items } = useQuery({
-    queryKey: ["items"],
+  const { data: customers } = useQuery({
+    queryKey: ["customers"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("items")
-        .select("*")
+        .from("customers")
+        .select(`
+          *,
+          neighborhoods(name)
+        `)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
   });
 
-  const createItemMutation = useMutation({
-    mutationFn: async (item: any) => {
+  const { data: neighborhoods } = useQuery({
+    queryKey: ["neighborhoods"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("neighborhoods").select("*");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const createCustomerMutation = useMutation({
+    mutationFn: async (customer: typeof newCustomer) => {
       const { data, error } = await supabase
-        .from("items")
-        .insert({
-          name: item.name,
-          price: parseFloat(item.price),
-          category: item.category
-        })
+        .from("customers")
+        .insert(customer)
         .select()
         .single();
       if (error) throw error;
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["items"] });
-      setNewItem({ name: "", price: "", category: "" });
-      toast.success("Item cadastrado com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      setNewCustomer({ name: "", phone: "", neighborhood_id: "" });
+      toast.success("Cliente cadastrado com sucesso!");
     },
     onError: (error) => {
-      toast.error("Erro ao cadastrar item: " + error.message);
+      toast.error("Erro ao cadastrar cliente: " + error.message);
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newItem.name || !newItem.price || !newItem.category) {
-      toast.error("Preencha todos os campos");
+    if (!newCustomer.name || !newCustomer.phone) {
+      toast.error("Preencha todos os campos obrigatórios");
       return;
     }
-    createItemMutation.mutate(newItem);
+    createCustomerMutation.mutate(newCustomer);
   };
-
-  const categories = ["Base", "Fruta", "Complemento", "Adicional"];
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-violet-600 bg-clip-text text-transparent">
-            Itens
+            Clientes
           </h1>
-          <p className="text-gray-600 mt-2">Gerencie os itens individuais para composição dos produtos</p>
+          <p className="text-gray-600 mt-2">Gerencie seus clientes</p>
         </div>
       </div>
 
@@ -82,55 +89,53 @@ export default function Items() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-purple-700">
               <Plus className="w-5 h-5" />
-              Novo Item
+              Novo Cliente
             </CardTitle>
             <CardDescription>
-              Cadastre um novo item para compor produtos
+              Cadastre um novo cliente
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
-                  <Package className="w-4 h-4" />
-                  Nome do Item
+                  <Users className="w-4 h-4" />
+                  Nome *
                 </Label>
                 <Input
-                  placeholder="Ex: Açaí base 300ml, Granola..."
-                  value={newItem.name}
-                  onChange={(e) => setNewItem(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Nome do cliente"
+                  value={newCustomer.name}
+                  onChange={(e) => setNewCustomer(prev => ({ ...prev, name: e.target.value }))}
                   className="border-purple-200 focus:border-purple-400"
                 />
               </div>
 
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
-                  <DollarSign className="w-4 h-4" />
-                  Preço (R$)
+                  <Phone className="w-4 h-4" />
+                  Telefone *
                 </Label>
                 <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={newItem.price}
-                  onChange={(e) => setNewItem(prev => ({ ...prev, price: e.target.value }))}
+                  placeholder="(11) 99999-9999"
+                  value={newCustomer.phone}
+                  onChange={(e) => setNewCustomer(prev => ({ ...prev, phone: e.target.value }))}
                   className="border-purple-200 focus:border-purple-400"
                 />
               </div>
 
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
-                  <Tag className="w-4 h-4" />
-                  Categoria
+                  <MapPin className="w-4 h-4" />
+                  Bairro
                 </Label>
-                <Select value={newItem.category} onValueChange={(value) => setNewItem(prev => ({ ...prev, category: value }))}>
+                <Select value={newCustomer.neighborhood_id} onValueChange={(value) => setNewCustomer(prev => ({ ...prev, neighborhood_id: value }))}>
                   <SelectTrigger className="border-purple-200 focus:border-purple-400">
-                    <SelectValue placeholder="Selecione a categoria" />
+                    <SelectValue placeholder="Selecione o bairro" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
+                    {neighborhoods?.map((neighborhood) => (
+                      <SelectItem key={neighborhood.id} value={neighborhood.id}>
+                        {neighborhood.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -139,10 +144,10 @@ export default function Items() {
 
               <Button 
                 type="submit" 
-                disabled={createItemMutation.isPending}
+                disabled={createCustomerMutation.isPending}
                 className="w-full bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700"
               >
-                {createItemMutation.isPending ? "Cadastrando..." : "Cadastrar Item"}
+                {createCustomerMutation.isPending ? "Cadastrando..." : "Cadastrar Cliente"}
               </Button>
             </form>
           </CardContent>
@@ -151,9 +156,9 @@ export default function Items() {
         <div className="lg:col-span-2">
           <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
             <CardHeader>
-              <CardTitle className="text-purple-700">Lista de Itens</CardTitle>
+              <CardTitle className="text-purple-700">Lista de Clientes</CardTitle>
               <CardDescription>
-                {items?.length || 0} itens cadastrados
+                {customers?.length || 0} clientes cadastrados
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -161,35 +166,30 @@ export default function Items() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nome</TableHead>
-                    <TableHead>Categoria</TableHead>
-                    <TableHead>Preço</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Data de Cadastro</TableHead>
+                    <TableHead>Telefone</TableHead>
+                    <TableHead>Bairro</TableHead>
+                    <TableHead>Último Pedido</TableHead>
+                    <TableHead>Cadastro</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {items?.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.name}</TableCell>
+                  {customers?.map((customer) => (
+                    <TableRow key={customer.id}>
+                      <TableCell className="font-medium">{customer.name}</TableCell>
+                      <TableCell>{customer.phone}</TableCell>
+                      <TableCell>{(customer as any).neighborhoods?.name || 'N/A'}</TableCell>
                       <TableCell>
-                        <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs">
-                          {item.category}
-                        </span>
-                      </TableCell>
-                      <TableCell className="font-semibold text-purple-600">
-                        R$ {item.price.toFixed(2)}
-                      </TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs ${
-                          item.active 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {item.active ? 'Ativo' : 'Inativo'}
-                        </span>
+                        {customer.last_order_date ? (
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-gray-400" />
+                            {new Date(customer.last_order_date).toLocaleDateString('pt-BR')}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">Nenhum pedido</span>
+                        )}
                       </TableCell>
                       <TableCell>
-                        {new Date(item.created_at).toLocaleDateString('pt-BR')}
+                        {new Date(customer.created_at).toLocaleDateString('pt-BR')}
                       </TableCell>
                     </TableRow>
                   ))}

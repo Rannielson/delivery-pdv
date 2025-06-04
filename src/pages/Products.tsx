@@ -1,355 +1,344 @@
-
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, Package } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-
-interface Item {
-  id: string;
-  name: string;
-  price: number;
-  category: string;
-}
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { Plus, Package, DollarSign, FileText } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface ProductItem {
-  itemId: string;
+  item_id: string;
   quantity: number;
 }
 
-interface Product {
-  id: string;
-  name: string;
-  description: string;
-  items: ProductItem[];
-  finalPrice: number;
-}
-
-const Products = () => {
-  const { toast } = useToast();
-  
-  // Dados simulados dos itens cadastrados
-  const availableItems: Item[] = [
-    { id: "1", name: "Açaí base", price: 8.00, category: "Base" },
-    { id: "2", name: "Granola", price: 2.50, category: "Complemento" },
-    { id: "3", name: "Banana", price: 1.50, category: "Fruta" },
-    { id: "4", name: "Leite condensado", price: 2.00, category: "Complemento" },
-    { id: "5", name: "Morango", price: 3.00, category: "Fruta" },
-    { id: "6", name: "Paçoca", price: 2.50, category: "Complemento" },
-  ];
-
-  const [products, setProducts] = useState<Product[]>([
-    {
-      id: "1",
-      name: "Açaí Tradicional 300ml",
-      description: "Açaí com granola e banana",
-      items: [
-        { itemId: "1", quantity: 1 },
-        { itemId: "2", quantity: 1 },
-        { itemId: "3", quantity: 1 },
-      ],
-      finalPrice: 18.00,
-    },
-  ]);
-
-  const [formData, setFormData] = useState({
+export default function Products() {
+  const [newProduct, setNewProduct] = useState({
     name: "",
     description: "",
-    finalPrice: "",
+    price: "",
+    items: [] as ProductItem[]
+  });
+  const [selectedItem, setSelectedItem] = useState("");
+  const [itemQuantity, setItemQuantity] = useState(1);
+
+  const queryClient = useQueryClient();
+
+  const { data: products } = useQuery({
+    queryKey: ["products"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select(`
+          *,
+          product_items(
+            quantity,
+            items(name, price)
+          )
+        `)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
   });
 
-  const [selectedItems, setSelectedItems] = useState<ProductItem[]>([]);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const { data: items } = useQuery({
+    queryKey: ["items"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("items").select("*");
+      if (error) throw error;
+      return data;
+    },
+  });
 
-  const calculateItemsTotal = () => {
-    return selectedItems.reduce((total, productItem) => {
-      const item = availableItems.find(i => i.id === productItem.itemId);
-      return total + (item ? item.price * productItem.quantity : 0);
-    }, 0);
+  const createProductMutation = useMutation({
+    mutationFn: async (product: any) => {
+      const { data: productData, error: productError } = await supabase
+        .from("products")
+        .insert({
+          name: product.name,
+          description: product.description,
+          price: parseFloat(product.price)
+        })
+        .select()
+        .single();
+
+      if (productError) throw productError;
+
+      if (product.items.length > 0) {
+        const { error: itemsError } = await supabase
+          .from("product_items")
+          .insert(
+            product.items.map((item: ProductItem) => ({
+              product_id: productData.id,
+              item_id: item.item_id,
+              quantity: item.quantity
+            }))
+          );
+
+        if (itemsError) throw itemsError;
+      }
+
+      return productData;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      setNewProduct({ name: "", description: "", price: "", items: [] });
+      setSelectedItem("");
+      setItemQuantity(1);
+      toast.success("Produto cadastrado com sucesso!");
+    },
+    onError: (error) => {
+      toast.error("Erro ao cadastrar produto: " + error.message);
+    },
+  });
+
+  const addItemToProduct = () => {
+    if (!selectedItem) return;
+    
+    const productItem: ProductItem = {
+      item_id: selectedItem,
+      quantity: itemQuantity
+    };
+
+    setNewProduct(prev => ({
+      ...prev,
+      items: [...prev.items, productItem]
+    }));
+
+    setSelectedItem("");
+    setItemQuantity(1);
   };
 
-  const handleItemToggle = (itemId: string) => {
-    const exists = selectedItems.find(si => si.itemId === itemId);
-    if (exists) {
-      setSelectedItems(selectedItems.filter(si => si.itemId !== itemId));
-    } else {
-      setSelectedItems([...selectedItems, { itemId, quantity: 1 }]);
-    }
-  };
-
-  const handleQuantityChange = (itemId: string, quantity: number) => {
-    if (quantity <= 0) {
-      setSelectedItems(selectedItems.filter(si => si.itemId !== itemId));
-    } else {
-      setSelectedItems(selectedItems.map(si => 
-        si.itemId === itemId ? { ...si, quantity } : si
-      ));
-    }
+  const removeItemFromProduct = (index: number) => {
+    setNewProduct(prev => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== index)
+    }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.name || !formData.description || !formData.finalPrice || selectedItems.length === 0) {
-      toast({
-        title: "Erro",
-        description: "Preencha todos os campos e selecione pelo menos um item",
-        variant: "destructive",
-      });
+    if (!newProduct.name || !newProduct.price) {
+      toast.error("Preencha todos os campos obrigatórios");
       return;
     }
-
-    const newProduct: Product = {
-      id: editingId || Date.now().toString(),
-      name: formData.name,
-      description: formData.description,
-      items: selectedItems,
-      finalPrice: parseFloat(formData.finalPrice),
-    };
-
-    if (editingId) {
-      setProducts(products.map(product => product.id === editingId ? newProduct : product));
-      toast({
-        title: "Sucesso",
-        description: "Produto atualizado com sucesso!",
-      });
-      setEditingId(null);
-    } else {
-      setProducts([...products, newProduct]);
-      toast({
-        title: "Sucesso",
-        description: "Produto cadastrado com sucesso!",
-      });
-    }
-
-    setFormData({ name: "", description: "", finalPrice: "" });
-    setSelectedItems([]);
+    createProductMutation.mutate(newProduct);
   };
 
-  const handleEdit = (product: Product) => {
-    setFormData({
-      name: product.name,
-      description: product.description,
-      finalPrice: product.finalPrice.toString(),
-    });
-    setSelectedItems(product.items);
-    setEditingId(product.id);
-  };
-
-  const handleDelete = (id: string) => {
-    setProducts(products.filter(product => product.id !== id));
-    toast({
-      title: "Sucesso",
-      description: "Produto removido com sucesso!",
-    });
-  };
-
-  const getItemName = (itemId: string) => {
-    return availableItems.find(item => item.id === itemId)?.name || "Item não encontrado";
-  };
-
-  const getItemPrice = (itemId: string) => {
-    return availableItems.find(item => item.id === itemId)?.price || 0;
+  const calculateItemsCost = () => {
+    return newProduct.items.reduce((total, productItem) => {
+      const item = items?.find(i => i.id === productItem.item_id);
+      return total + (item ? item.price * productItem.quantity : 0);
+    }, 0);
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col gap-2">
-        <h2 className="text-3xl font-bold tracking-tight bg-acai-gradient bg-clip-text text-transparent">
-          Cadastro de Produtos
-        </h2>
-        <p className="text-muted-foreground">
-          Monte seus produtos combinando os itens cadastrados
-        </p>
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-violet-600 bg-clip-text text-transparent">
+            Produtos
+          </h1>
+          <p className="text-gray-600 mt-2">Monte produtos combinando itens cadastrados</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Formulário de Cadastro */}
-        <Card className="border-0 shadow-lg">
+        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Plus className="h-5 w-5 text-acai-500" />
-              {editingId ? "Editar Produto" : "Novo Produto"}
+            <CardTitle className="flex items-center gap-2 text-purple-700">
+              <Plus className="w-5 h-5" />
+              Novo Produto
             </CardTitle>
+            <CardDescription>
+              Crie um produto combinando itens
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="name">Nome do Produto</Label>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Package className="w-4 h-4" />
+                  Nome do Produto
+                </Label>
                 <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="Ex: Açaí Tradicional 300ml"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="description">Descrição</Label>
-                <Input
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Breve descrição do produto"
+                  value={newProduct.name}
+                  onChange={(e) => setNewProduct(prev => ({ ...prev, name: e.target.value }))}
+                  className="border-purple-200 focus:border-purple-400"
                 />
               </div>
 
-              <div>
-                <Label>Itens do Produto</Label>
-                <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
-                  {availableItems.map((item) => {
-                    const selectedItem = selectedItems.find(si => si.itemId === item.id);
-                    const isSelected = !!selectedItem;
-                    
-                    return (
-                      <div key={item.id} className="flex items-center justify-between p-2 rounded bg-slate-50">
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id={item.id}
-                            checked={isSelected}
-                            onCheckedChange={() => handleItemToggle(item.id)}
-                          />
-                          <div>
-                            <label htmlFor={item.id} className="text-sm font-medium cursor-pointer">
-                              {item.name}
-                            </label>
-                            <p className="text-xs text-muted-foreground">
-                              R$ {item.price.toFixed(2)}
-                            </p>
-                          </div>
-                        </div>
-                        
-                        {isSelected && (
-                          <Input
-                            type="number"
-                            min="1"
-                            value={selectedItem?.quantity || 1}
-                            onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 1)}
-                            className="w-16 h-8"
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                
-                {selectedItems.length > 0 && (
-                  <div className="mt-2 p-2 bg-acai-50 rounded-md">
-                    <p className="text-sm font-medium text-acai-800">
-                      Custo dos itens: R$ {calculateItemsTotal().toFixed(2)}
-                    </p>
-                  </div>
-                )}
-              </div>
-              
-              <div>
-                <Label htmlFor="finalPrice">Preço Final (R$)</Label>
-                <Input
-                  id="finalPrice"
-                  type="number"
-                  step="0.01"
-                  value={formData.finalPrice}
-                  onChange={(e) => setFormData({ ...formData, finalPrice: e.target.value })}
-                  placeholder="0.00"
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Descrição
+                </Label>
+                <Textarea
+                  placeholder="Descrição do produto..."
+                  value={newProduct.description}
+                  onChange={(e) => setNewProduct(prev => ({ ...prev, description: e.target.value }))}
+                  className="border-purple-200 focus:border-purple-400"
                 />
               </div>
-              
-              <div className="flex gap-2">
-                <Button type="submit" className="flex-1 bg-acai-gradient hover:opacity-90">
-                  {editingId ? "Atualizar" : "Cadastrar"}
-                </Button>
-                {editingId && (
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => {
-                      setEditingId(null);
-                      setFormData({ name: "", description: "", finalPrice: "" });
-                      setSelectedItems([]);
-                    }}
-                  >
-                    Cancelar
-                  </Button>
-                )}
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4" />
+                  Preço de Venda (R$)
+                </Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={newProduct.price}
+                  onChange={(e) => setNewProduct(prev => ({ ...prev, price: e.target.value }))}
+                  className="border-purple-200 focus:border-purple-400"
+                />
               </div>
+
+              <div className="border-t pt-4">
+                <h3 className="text-sm font-semibold text-purple-700 mb-3">Adicionar Itens</h3>
+                <div className="space-y-3">
+                  <Select value={selectedItem} onValueChange={setSelectedItem}>
+                    <SelectTrigger className="border-purple-200 focus:border-purple-400">
+                      <SelectValue placeholder="Selecione um item" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {items?.map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.name} - R$ {item.price.toFixed(2)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      min="1"
+                      value={itemQuantity}
+                      onChange={(e) => setItemQuantity(parseInt(e.target.value) || 1)}
+                      className="w-20 border-purple-200 focus:border-purple-400"
+                      placeholder="Qtd"
+                    />
+                    <Button 
+                      type="button" 
+                      onClick={addItemToProduct}
+                      variant="outline"
+                      className="border-purple-200 text-purple-600 hover:bg-purple-50"
+                    >
+                      Adicionar
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {newProduct.items.length > 0 && (
+                <div className="border-t pt-4">
+                  <h3 className="text-sm font-semibold text-purple-700 mb-3">Itens do Produto</h3>
+                  <div className="space-y-2">
+                    {newProduct.items.map((productItem, index) => {
+                      const item = items?.find(i => i.id === productItem.item_id);
+                      return (
+                        <div key={index} className="flex items-center justify-between p-2 bg-purple-50 rounded">
+                          <div className="text-sm">
+                            <span className="font-medium">{item?.name}</span>
+                            <span className="text-gray-600 ml-2">x{productItem.quantity}</span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeItemFromProduct(index)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      );
+                    })}
+                    <div className="text-xs text-gray-600 pt-2 border-t">
+                      Custo dos itens: R$ {calculateItemsCost().toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <Button 
+                type="submit" 
+                disabled={createProductMutation.isPending}
+                className="w-full bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700"
+              >
+                {createProductMutation.isPending ? "Cadastrando..." : "Cadastrar Produto"}
+              </Button>
             </form>
           </CardContent>
         </Card>
 
-        {/* Lista de Produtos */}
         <div className="lg:col-span-2">
-          <Card className="border-0 shadow-lg">
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5 text-acai-500" />
-                Produtos Cadastrados ({products.length})
-              </CardTitle>
+              <CardTitle className="text-purple-700">Lista de Produtos</CardTitle>
+              <CardDescription>
+                {products?.length || 0} produtos cadastrados
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {products.map((product) => (
-                  <div 
-                    key={product.id} 
-                    className="p-4 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg">{product.name}</h3>
-                        <p className="text-muted-foreground text-sm mb-2">{product.description}</p>
-                        <p className="text-xl font-bold text-fresh-600">
-                          R$ {product.finalPrice.toFixed(2)}
-                        </p>
-                      </div>
-                      
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(product)}
-                          className="hover:bg-acai-100 hover:text-acai-700"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(product.id)}
-                          className="hover:bg-red-100 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm font-medium mb-2">Itens inclusos:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {product.items.map((productItem) => (
-                          <Badge key={productItem.itemId} variant="secondary" className="text-xs">
-                            {productItem.quantity}x {getItemName(productItem.itemId)}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                
-                {products.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Nenhum produto cadastrado ainda
-                  </div>
-                )}
-              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>Preço</TableHead>
+                    <TableHead>Itens</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Data</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {products?.map((product) => (
+                    <TableRow key={product.id}>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{product.name}</div>
+                          {product.description && (
+                            <div className="text-sm text-gray-600">{product.description}</div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-semibold text-purple-600">
+                        R$ {product.price.toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-xs">
+                          {(product as any).product_items?.length || 0} itens
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-1 rounded-full text-xs ${
+                          product.active 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {product.active ? 'Ativo' : 'Inativo'}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {new Date(product.created_at).toLocaleDateString('pt-BR')}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </div>
       </div>
     </div>
   );
-};
-
-export default Products;
+}

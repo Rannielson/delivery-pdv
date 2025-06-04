@@ -8,6 +8,10 @@ import { DashboardLayout } from "./components/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
 import Items from "./pages/Items";
 import Products from "./pages/Products";
+import Orders from "./pages/Orders";
+import Customers from "./pages/Customers";
+import Neighborhoods from "./pages/Neighborhoods";
+import Payments from "./pages/Payments";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,10 +27,10 @@ const App = () => (
             <Route path="/" element={<Dashboard />} />
             <Route path="/items" element={<Items />} />
             <Route path="/products" element={<Products />} />
-            <Route path="/orders" element={<div>Página de Pedidos (em desenvolvimento)</div>} />
-            <Route path="/customers" element={<div>Página de Clientes (em desenvolvimento)</div>} />
-            <Route path="/neighborhoods" element={<div>Página de Bairros (em desenvolvimento)</div>} />
-            <Route path="/payments" element={<div>Página de Pagamentos (em desenvolvimento)</div>} />
+            <Route path="/orders" element={<Orders />} />
+            <Route path="/customers" element={<Customers />} />
+            <Route path="/neighborhoods" element={<Neighborhoods />} />
+            <Route path="/payments" element={<Payments />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </DashboardLayout>

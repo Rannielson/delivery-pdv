@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -5,40 +6,37 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Package, DollarSign, Tag } from "lucide-react";
+import { Plus, MapPin, DollarSign } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-export default function Items() {
-  const [newItem, setNewItem] = useState({
+export default function Neighborhoods() {
+  const [newNeighborhood, setNewNeighborhood] = useState({
     name: "",
-    price: "",
-    category: ""
+    delivery_fee: ""
   });
 
   const queryClient = useQueryClient();
 
-  const { data: items } = useQuery({
-    queryKey: ["items"],
+  const { data: neighborhoods } = useQuery({
+    queryKey: ["neighborhoods"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("items")
+        .from("neighborhoods")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("name");
       if (error) throw error;
       return data;
     },
   });
 
-  const createItemMutation = useMutation({
-    mutationFn: async (item: any) => {
+  const createNeighborhoodMutation = useMutation({
+    mutationFn: async (neighborhood: any) => {
       const { data, error } = await supabase
-        .from("items")
+        .from("neighborhoods")
         .insert({
-          name: item.name,
-          price: parseFloat(item.price),
-          category: item.category
+          name: neighborhood.name,
+          delivery_fee: parseFloat(neighborhood.delivery_fee)
         })
         .select()
         .single();
@@ -46,34 +44,32 @@ export default function Items() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["items"] });
-      setNewItem({ name: "", price: "", category: "" });
-      toast.success("Item cadastrado com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["neighborhoods"] });
+      setNewNeighborhood({ name: "", delivery_fee: "" });
+      toast.success("Bairro cadastrado com sucesso!");
     },
     onError: (error) => {
-      toast.error("Erro ao cadastrar item: " + error.message);
+      toast.error("Erro ao cadastrar bairro: " + error.message);
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newItem.name || !newItem.price || !newItem.category) {
+    if (!newNeighborhood.name || !newNeighborhood.delivery_fee) {
       toast.error("Preencha todos os campos");
       return;
     }
-    createItemMutation.mutate(newItem);
+    createNeighborhoodMutation.mutate(newNeighborhood);
   };
-
-  const categories = ["Base", "Fruta", "Complemento", "Adicional"];
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-violet-600 bg-clip-text text-transparent">
-            Itens
+            Bairros
           </h1>
-          <p className="text-gray-600 mt-2">Gerencie os itens individuais para composição dos produtos</p>
+          <p className="text-gray-600 mt-2">Gerencie os bairros de entrega</p>
         </div>
       </div>
 
@@ -82,23 +78,23 @@ export default function Items() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-purple-700">
               <Plus className="w-5 h-5" />
-              Novo Item
+              Novo Bairro
             </CardTitle>
             <CardDescription>
-              Cadastre um novo item para compor produtos
+              Cadastre um novo bairro
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
-                  <Package className="w-4 h-4" />
-                  Nome do Item
+                  <MapPin className="w-4 h-4" />
+                  Nome do Bairro
                 </Label>
                 <Input
-                  placeholder="Ex: Açaí base 300ml, Granola..."
-                  value={newItem.name}
-                  onChange={(e) => setNewItem(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Ex: Centro, Zona Norte..."
+                  value={newNeighborhood.name}
+                  onChange={(e) => setNewNeighborhood(prev => ({ ...prev, name: e.target.value }))}
                   className="border-purple-200 focus:border-purple-400"
                 />
               </div>
@@ -106,43 +102,24 @@ export default function Items() {
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   <DollarSign className="w-4 h-4" />
-                  Preço (R$)
+                  Taxa de Entrega (R$)
                 </Label>
                 <Input
                   type="number"
                   step="0.01"
                   placeholder="0.00"
-                  value={newItem.price}
-                  onChange={(e) => setNewItem(prev => ({ ...prev, price: e.target.value }))}
+                  value={newNeighborhood.delivery_fee}
+                  onChange={(e) => setNewNeighborhood(prev => ({ ...prev, delivery_fee: e.target.value }))}
                   className="border-purple-200 focus:border-purple-400"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Tag className="w-4 h-4" />
-                  Categoria
-                </Label>
-                <Select value={newItem.category} onValueChange={(value) => setNewItem(prev => ({ ...prev, category: value }))}>
-                  <SelectTrigger className="border-purple-200 focus:border-purple-400">
-                    <SelectValue placeholder="Selecione a categoria" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
               <Button 
                 type="submit" 
-                disabled={createItemMutation.isPending}
+                disabled={createNeighborhoodMutation.isPending}
                 className="w-full bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700"
               >
-                {createItemMutation.isPending ? "Cadastrando..." : "Cadastrar Item"}
+                {createNeighborhoodMutation.isPending ? "Cadastrando..." : "Cadastrar Bairro"}
               </Button>
             </form>
           </CardContent>
@@ -151,9 +128,9 @@ export default function Items() {
         <div className="lg:col-span-2">
           <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
             <CardHeader>
-              <CardTitle className="text-purple-700">Lista de Itens</CardTitle>
+              <CardTitle className="text-purple-700">Lista de Bairros</CardTitle>
               <CardDescription>
-                {items?.length || 0} itens cadastrados
+                {neighborhoods?.length || 0} bairros cadastrados
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -161,35 +138,29 @@ export default function Items() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nome</TableHead>
-                    <TableHead>Categoria</TableHead>
-                    <TableHead>Preço</TableHead>
+                    <TableHead>Taxa de Entrega</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Data de Cadastro</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {items?.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell>
-                        <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs">
-                          {item.category}
-                        </span>
-                      </TableCell>
+                  {neighborhoods?.map((neighborhood) => (
+                    <TableRow key={neighborhood.id}>
+                      <TableCell className="font-medium">{neighborhood.name}</TableCell>
                       <TableCell className="font-semibold text-purple-600">
-                        R$ {item.price.toFixed(2)}
+                        R$ {neighborhood.delivery_fee.toFixed(2)}
                       </TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs ${
-                          item.active 
+                          neighborhood.active 
                             ? 'bg-green-100 text-green-800' 
                             : 'bg-red-100 text-red-800'
                         }`}>
-                          {item.active ? 'Ativo' : 'Inativo'}
+                          {neighborhood.active ? 'Ativo' : 'Inativo'}
                         </span>
                       </TableCell>
                       <TableCell>
-                        {new Date(item.created_at).toLocaleDateString('pt-BR')}
+                        {new Date(neighborhood.created_at).toLocaleDateString('pt-BR')}
                       </TableCell>
                     </TableRow>
                   ))}

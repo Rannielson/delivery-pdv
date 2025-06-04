@@ -1,218 +1,234 @@
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
-  Calendar,
-  DollarSign,
+  TrendingUp, 
+  DollarSign, 
+  Users, 
+  Package, 
   MapPin,
-  TrendingUp,
-  Users,
-  ShoppingBag,
-  Award,
-  Activity
+  Calendar,
+  Activity,
+  Star
 } from "lucide-react";
 
-const Dashboard = () => {
-  const salesData = {
-    totalSales: 15420.50,
-    monthlyGrowth: 12.5,
-    ordersCount: 324,
-    customersCount: 156,
-    topNeighborhood: "Centro",
-    neighborhoodSales: 4230.00,
-    avgOrderValue: 47.60
-  };
+export default function Dashboard() {
+  const { data: totalOrders } = useQuery({
+    queryKey: ["total-orders"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("total_amount", { count: "exact" });
+      if (error) throw error;
+      return {
+        count: data?.length || 0,
+        total: data?.reduce((sum, order) => sum + Number(order.total_amount), 0) || 0
+      };
+    },
+  });
 
-  const topProducts = [
-    { name: "Açaí 500ml", sales: 89, revenue: 1780.00 },
-    { name: "Açaí 300ml", sales: 67, revenue: 1340.00 },
-    { name: "Açaí Especial", sales: 45, revenue: 1350.00 },
-  ];
+  const { data: totalCustomers } = useQuery({
+    queryKey: ["total-customers"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("customers")
+        .select("*", { count: "exact", head: true });
+      if (error) throw error;
+      return count || 0;
+    },
+  });
 
-  const recentOrders = [
-    { id: "#001", customer: "Maria Silva", value: 32.50, status: "Entregue", time: "14:30" },
-    { id: "#002", customer: "João Santos", value: 28.00, status: "Preparando", time: "14:25" },
-    { id: "#003", customer: "Ana Costa", value: 45.50, status: "Saiu para entrega", time: "14:20" },
+  const { data: totalProducts } = useQuery({
+    queryKey: ["total-products"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("products")
+        .select("*", { count: "exact", head: true });
+      if (error) throw error;
+      return count || 0;
+    },
+  });
+
+  const { data: topNeighborhood } = useQuery({
+    queryKey: ["top-neighborhood"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select(`
+          neighborhood_id,
+          neighborhoods(name)
+        `)
+        .limit(1000);
+      
+      if (error) throw error;
+      
+      const neighborhoods = data?.reduce((acc: any, order) => {
+        const neighborhoodName = (order as any).neighborhoods?.name || 'Desconhecido';
+        acc[neighborhoodName] = (acc[neighborhoodName] || 0) + 1;
+        return acc;
+      }, {});
+      
+      const topNeighborhood = Object.entries(neighborhoods || {})
+        .sort(([,a], [,b]) => (b as number) - (a as number))[0];
+      
+      return topNeighborhood ? {
+        name: topNeighborhood[0],
+        orders: topNeighborhood[1]
+      } : null;
+    },
+  });
+
+  const statsCards = [
+    {
+      title: "Vendas Totais",
+      value: `R$ ${(totalOrders?.total || 0).toFixed(2)}`,
+      description: "Total em vendas do mês",
+      icon: DollarSign,
+      color: "from-green-500 to-emerald-600",
+      iconBg: "bg-green-100",
+      iconColor: "text-green-600"
+    },
+    {
+      title: "Pedidos",
+      value: totalOrders?.count || 0,
+      description: "Total de pedidos realizados",
+      icon: Package,
+      color: "from-blue-500 to-cyan-600",
+      iconBg: "bg-blue-100",
+      iconColor: "text-blue-600"
+    },
+    {
+      title: "Clientes",
+      value: totalCustomers || 0,
+      description: "Clientes cadastrados",
+      icon: Users,
+      color: "from-purple-500 to-violet-600",
+      iconBg: "bg-purple-100",
+      iconColor: "text-purple-600"
+    },
+    {
+      title: "Produtos",
+      value: totalProducts || 0,
+      description: "Produtos disponíveis",
+      icon: Star,
+      color: "from-orange-500 to-red-600",
+      iconBg: "bg-orange-100",
+      iconColor: "text-orange-600"
+    },
   ];
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex flex-col gap-2">
-        <h2 className="text-3xl font-bold tracking-tight bg-acai-gradient bg-clip-text text-transparent">
-          Dashboard
-        </h2>
-        <p className="text-muted-foreground">
-          Resumo das vendas e insights do mês atual
-        </p>
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-violet-600 bg-clip-text text-transparent">
+            Dashboard
+          </h1>
+          <p className="text-gray-600 mt-2">Visão geral do seu negócio</p>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-purple-600 bg-purple-50 px-4 py-2 rounded-full">
+          <Calendar className="w-4 h-4" />
+          {new Date().toLocaleDateString('pt-BR')}
+        </div>
       </div>
 
-      {/* Métricas Principais */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="hover-scale border-0 shadow-lg bg-gradient-to-br from-acai-500 to-acai-600 text-white">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium opacity-90">
-              Vendas do Mês
-            </CardTitle>
-            <DollarSign className="h-5 w-5 opacity-90" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              R$ {salesData.totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </div>
-            <p className="text-xs opacity-90 flex items-center gap-1">
-              <TrendingUp className="h-3 w-3" />
-              +{salesData.monthlyGrowth}% em relação ao mês anterior
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="hover-scale border-0 shadow-lg bg-gradient-to-br from-fresh-500 to-fresh-600 text-white">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium opacity-90">
-              Pedidos
-            </CardTitle>
-            <ShoppingBag className="h-5 w-5 opacity-90" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{salesData.ordersCount}</div>
-            <p className="text-xs opacity-90">
-              Ticket médio: R$ {salesData.avgOrderValue.toFixed(2)}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="hover-scale border-0 shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Clientes
-            </CardTitle>
-            <Users className="h-5 w-5 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground">{salesData.customersCount}</div>
-            <p className="text-xs text-muted-foreground">
-              Clientes únicos
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="hover-scale border-0 shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Top Bairro
-            </CardTitle>
-            <MapPin className="h-5 w-5 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground">{salesData.topNeighborhood}</div>
-            <p className="text-xs text-muted-foreground">
-              R$ {salesData.neighborhoodSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em vendas
-            </p>
-          </CardContent>
-        </Card>
+        {statsCards.map((card, index) => (
+          <Card key={index} className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-white/80 backdrop-blur-sm hover:scale-105">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">
+                {card.title}
+              </CardTitle>
+              <div className={`p-2 rounded-lg ${card.iconBg}`}>
+                <card.icon className={`w-5 h-5 ${card.iconColor}`} />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className={`text-3xl font-bold bg-gradient-to-r ${card.color} bg-clip-text text-transparent`}>
+                {card.value}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {card.description}
+              </p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Produtos Mais Vendidos */}
-        <Card className="border-0 shadow-lg">
+        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Award className="h-5 w-5 text-acai-500" />
-              Produtos Mais Vendidos
+            <CardTitle className="flex items-center gap-2 text-purple-700">
+              <MapPin className="w-5 h-5" />
+              Bairro Mais Vendido
             </CardTitle>
+            <CardDescription>
+              Região com maior volume de pedidos
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {topProducts.map((product, index) => (
-              <div key={product.name} className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
-                <div className="flex items-center gap-3">
-                  <Badge variant="secondary" className="bg-acai-100 text-acai-700">
-                    #{index + 1}
-                  </Badge>
-                  <div>
-                    <p className="font-medium">{product.name}</p>
-                    <p className="text-sm text-muted-foreground">{product.sales} vendas</p>
-                  </div>
+          <CardContent>
+            {topNeighborhood ? (
+              <div className="space-y-4">
+                <div className="text-2xl font-bold text-purple-600">
+                  {topNeighborhood.name}
                 </div>
-                <div className="text-right">
-                  <p className="font-bold text-fresh-600">
-                    R$ {product.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </p>
+                <div className="text-sm text-gray-600">
+                  {topNeighborhood.orders} pedidos realizados
+                </div>
+                <div className="w-full bg-purple-100 rounded-full h-2">
+                  <div 
+                    className="bg-gradient-to-r from-purple-500 to-violet-600 h-2 rounded-full transition-all duration-1000" 
+                    style={{ width: "75%" }}
+                  ></div>
                 </div>
               </div>
-            ))}
+            ) : (
+              <div className="text-gray-500 text-center py-8">
+                <MapPin className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                Nenhum pedido encontrado
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Pedidos Recentes */}
-        <Card className="border-0 shadow-lg">
+        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5 text-fresh-500" />
-              Pedidos Recentes
+            <CardTitle className="flex items-center gap-2 text-purple-700">
+              <Activity className="w-5 h-5" />
+              Atividade Recente
             </CardTitle>
+            <CardDescription>
+              Últimas movimentações do sistema
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {recentOrders.map((order) => (
-              <div key={order.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
-                <div>
-                  <p className="font-medium">{order.id} - {order.customer}</p>
-                  <p className="text-sm text-muted-foreground">{order.time}</p>
-                </div>
-                <div className="text-right space-y-1">
-                  <p className="font-bold">R$ {order.value.toFixed(2)}</p>
-                  <Badge 
-                    variant={order.status === "Entregue" ? "default" : "secondary"}
-                    className={
-                      order.status === "Entregue" 
-                        ? "bg-fresh-500 hover:bg-fresh-600" 
-                        : order.status === "Preparando" 
-                        ? "bg-orange-500 hover:bg-orange-600 text-white" 
-                        : "bg-blue-500 hover:bg-blue-600 text-white"
-                    }
-                  >
-                    {order.status}
-                  </Badge>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg">
+                <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
+                <div className="text-sm">
+                  <div className="font-medium text-gray-900">Sistema inicializado</div>
+                  <div className="text-gray-500">Banco de dados conectado</div>
                 </div>
               </div>
-            ))}
+              <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <div className="text-sm">
+                  <div className="font-medium text-gray-900">Dados carregados</div>
+                  <div className="text-gray-500">Produtos e clientes sincronizados</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <div className="text-sm">
+                  <div className="font-medium text-gray-900">Dashboard atualizado</div>
+                  <div className="text-gray-500">Métricas em tempo real</div>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Insights e Análises */}
-      <Card className="border-0 shadow-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-acai-500" />
-            Insights do Negócio
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 rounded-lg bg-acai-50 border border-acai-200">
-              <h4 className="font-semibold text-acai-800 mb-2">Performance de Vendas</h4>
-              <Progress value={75} className="mb-2" />
-              <p className="text-sm text-acai-700">75% da meta mensal atingida</p>
-            </div>
-            
-            <div className="p-4 rounded-lg bg-fresh-50 border border-fresh-200">
-              <h4 className="font-semibold text-fresh-800 mb-2">Satisfação do Cliente</h4>
-              <Progress value={92} className="mb-2" />
-              <p className="text-sm text-fresh-700">92% de avaliações positivas</p>
-            </div>
-            
-            <div className="p-4 rounded-lg bg-orange-50 border border-orange-200">
-              <h4 className="font-semibold text-orange-800 mb-2">Tempo Médio de Entrega</h4>
-              <Progress value={85} className="mb-2" />
-              <p className="text-sm text-orange-700">25 minutos (85% dentro do prazo)</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
-};
-
-export default Dashboard;
+}
