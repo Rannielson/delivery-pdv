@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -10,6 +9,8 @@ import Dashboard from "./pages/Dashboard";
 import Items from "./pages/Items";
 import Products from "./pages/Products";
 import Orders from "./pages/Orders";
+import OrdersExtract from "./pages/OrdersExtract";
+import PrioritySettings from "./pages/PrioritySettings";
 import Customers from "./pages/Customers";
 import Neighborhoods from "./pages/Neighborhoods";
 import Payments from "./pages/Payments";
@@ -30,6 +31,8 @@ function App() {
               <Route path="/items" element={<Items />} />
               <Route path="/products" element={<Products />} />
               <Route path="/orders" element={<Orders />} />
+              <Route path="/orders-extract" element={<OrdersExtract />} />
+              <Route path="/priority-settings" element={<PrioritySettings />} />
               <Route path="/customers" element={<Customers />} />
               <Route path="/neighborhoods" element={<Neighborhoods />} />
               <Route path="/payments" element={<Payments />} />

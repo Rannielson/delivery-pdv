@@ -157,6 +157,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          cancellation_reason: string | null
           created_at: string
           customer_id: string
           delivery_fee: number
@@ -164,11 +165,14 @@ export type Database = {
           neighborhood_id: string
           notes: string | null
           payment_method_id: string
+          priority_label: string | null
+          priority_level: number | null
           status: string
           total_amount: number
           updated_at: string
         }
         Insert: {
+          cancellation_reason?: string | null
           created_at?: string
           customer_id: string
           delivery_fee?: number
@@ -176,11 +180,14 @@ export type Database = {
           neighborhood_id: string
           notes?: string | null
           payment_method_id: string
+          priority_label?: string | null
+          priority_level?: number | null
           status?: string
           total_amount: number
           updated_at?: string
         }
         Update: {
+          cancellation_reason?: string | null
           created_at?: string
           customer_id?: string
           delivery_fee?: number
@@ -188,6 +195,8 @@ export type Database = {
           neighborhood_id?: string
           notes?: string | null
           payment_method_id?: string
+          priority_label?: string | null
+          priority_level?: number | null
           status?: string
           total_amount?: number
           updated_at?: string
@@ -240,6 +249,36 @@ export type Database = {
         }
         Relationships: []
       }
+      priority_settings: {
+        Row: {
+          created_at: string
+          id: string
+          minutes_threshold: number
+          priority_label: string
+          priority_level: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          minutes_threshold: number
+          priority_label: string
+          priority_level?: number
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          minutes_threshold?: number
+          priority_label?: string
+          priority_level?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       product_items: {
         Row: {
           created_at: string
@@ -282,6 +321,7 @@ export type Database = {
       products: {
         Row: {
           active: boolean
+          cost_price: number | null
           created_at: string
           description: string | null
           id: string
@@ -291,6 +331,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          cost_price?: number | null
           created_at?: string
           description?: string | null
           id?: string
@@ -300,6 +341,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          cost_price?: number | null
           created_at?: string
           description?: string | null
           id?: string
