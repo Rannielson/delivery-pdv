@@ -1,4 +1,5 @@
 
+import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -16,27 +17,29 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <DashboardLayout>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/items" element={<Items />} />
-            <Route path="/products" element={<Products />} />
-            <Route path="/orders" element={<Orders />} />
-            <Route path="/customers" element={<Customers />} />
-            <Route path="/neighborhoods" element={<Neighborhoods />} />
-            <Route path="/payments" element={<Payments />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </DashboardLayout>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <DashboardLayout>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/items" element={<Items />} />
+              <Route path="/products" element={<Products />} />
+              <Route path="/orders" element={<Orders />} />
+              <Route path="/customers" element={<Customers />} />
+              <Route path="/neighborhoods" element={<Neighborhoods />} />
+              <Route path="/payments" element={<Payments />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </DashboardLayout>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
 
 export default App;

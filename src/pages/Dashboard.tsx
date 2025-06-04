@@ -73,8 +73,8 @@ export default function Dashboard() {
         .sort(([,a], [,b]) => (b as number) - (a as number))[0];
       
       return topNeighborhood ? {
-        name: topNeighborhood[0],
-        orders: topNeighborhood[1]
+        name: topNeighborhood[0] as string,
+        orders: topNeighborhood[1] as number
       } : null;
     },
   });
@@ -91,7 +91,7 @@ export default function Dashboard() {
     },
     {
       title: "Pedidos",
-      value: totalOrders?.count || 0,
+      value: String(totalOrders?.count || 0),
       description: "Total de pedidos realizados",
       icon: Package,
       color: "from-blue-500 to-cyan-600",
@@ -100,7 +100,7 @@ export default function Dashboard() {
     },
     {
       title: "Clientes",
-      value: totalCustomers || 0,
+      value: String(totalCustomers || 0),
       description: "Clientes cadastrados",
       icon: Users,
       color: "from-purple-500 to-violet-600",
@@ -109,7 +109,7 @@ export default function Dashboard() {
     },
     {
       title: "Produtos",
-      value: totalProducts || 0,
+      value: String(totalProducts || 0),
       description: "Produtos disponíveis",
       icon: Star,
       color: "from-orange-500 to-red-600",
@@ -186,7 +186,7 @@ export default function Dashboard() {
             ) : (
               <div className="text-gray-500 text-center py-8">
                 <MapPin className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                Nenhum pedido encontrado
+                <p>Nenhum pedido encontrado</p>
               </div>
             )}
           </CardContent>
