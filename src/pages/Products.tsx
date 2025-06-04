@@ -17,6 +17,12 @@ interface ProductItem {
   quantity: number;
 }
 
+interface EditingProductItem {
+  id?: string;
+  item_id: string;
+  quantity: number;
+}
+
 export default function Products() {
   const [newProduct, setNewProduct] = useState({
     name: "",
@@ -28,6 +34,9 @@ export default function Products() {
   const [itemQuantity, setItemQuantity] = useState(1);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingProductItems, setEditingProductItems] = useState<EditingProductItem[]>([]);
+  const [editSelectedItem, setEditSelectedItem] = useState("");
+  const [editItemQuantity, setEditItemQuantity] = useState(1);
 
   const queryClient = useQueryClient();
 
@@ -39,8 +48,9 @@ export default function Products() {
         .select(`
           *,
           product_items(
+            id,
             quantity,
-            items(name, price)
+            items(id, name, price)
           )
         `)
         .order("created_at", { ascending: false });
@@ -60,23 +70,48 @@ export default function Products() {
 
   const updateProductMutation = useMutation({
     mutationFn: async (product: any) => {
+      // Update product basic info
       const { data, error } = await supabase
         .from("products")
         .update({
           name: product.name,
           description: product.description,
           price: parseFloat(product.price),
+          cost_price: calculateEditingProductCost(),
           updated_at: new Date().toISOString()
         })
         .eq("id", product.id)
         .select()
         .single();
       if (error) throw error;
+
+      // Delete existing product items
+      const { error: deleteError } = await supabase
+        .from("product_items")
+        .delete()
+        .eq("product_id", product.id);
+      if (deleteError) throw deleteError;
+
+      // Insert new product items
+      if (editingProductItems.length > 0) {
+        const { error: itemsError } = await supabase
+          .from("product_items")
+          .insert(
+            editingProductItems.map((item) => ({
+              product_id: product.id,
+              item_id: item.item_id,
+              quantity: item.quantity
+            }))
+          );
+        if (itemsError) throw itemsError;
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       setEditingProduct(null);
+      setEditingProductItems([]);
       setIsEditDialogOpen(false);
       toast.success("Produto atualizado com sucesso!");
     },
@@ -109,7 +144,8 @@ export default function Products() {
         .insert({
           name: product.name,
           description: product.description,
-          price: parseFloat(product.price)
+          price: parseFloat(product.price),
+          cost_price: calculateItemsCost()
         })
         .select()
         .single();
@@ -168,6 +204,37 @@ export default function Products() {
     }));
   };
 
+  const addItemToEditingProduct = () => {
+    if (!editSelectedItem) return;
+    
+    const productItem: EditingProductItem = {
+      item_id: editSelectedItem,
+      quantity: editItemQuantity
+    };
+
+    setEditingProductItems(prev => [...prev, productItem]);
+    setEditSelectedItem("");
+    setEditItemQuantity(1);
+  };
+
+  const removeItemFromEditingProduct = (index: number) => {
+    setEditingProductItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const calculateItemsCost = () => {
+    return newProduct.items.reduce((total, productItem) => {
+      const item = items?.find(i => i.id === productItem.item_id);
+      return total + (item ? item.price * productItem.quantity : 0);
+    }, 0);
+  };
+
+  const calculateEditingProductCost = () => {
+    return editingProductItems.reduce((total, productItem) => {
+      const item = items?.find(i => i.id === productItem.item_id);
+      return total + (item ? item.price * productItem.quantity : 0);
+    }, 0);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProduct.name || !newProduct.price) {
@@ -182,6 +249,15 @@ export default function Products() {
       ...product,
       price: product.price.toString()
     });
+    
+    // Convert product_items to editing format
+    const productItems = (product as any).product_items?.map((item: any) => ({
+      id: item.id,
+      item_id: item.items.id,
+      quantity: item.quantity
+    })) || [];
+    
+    setEditingProductItems(productItems);
     setIsEditDialogOpen(true);
   };
 
@@ -197,13 +273,6 @@ export default function Products() {
     if (confirm("Tem certeza que deseja excluir este produto?")) {
       deleteProductMutation.mutate(productId);
     }
-  };
-
-  const calculateItemsCost = () => {
-    return newProduct.items.reduce((total, productItem) => {
-      const item = items?.find(i => i.id === productItem.item_id);
-      return total + (item ? item.price * productItem.quantity : 0);
-    }, 0);
   };
 
   return (
@@ -364,6 +433,7 @@ export default function Products() {
                   <TableRow>
                     <TableHead>Nome</TableHead>
                     <TableHead>Preço</TableHead>
+                    <TableHead>Custo</TableHead>
                     <TableHead>Itens</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Data</TableHead>
@@ -383,6 +453,9 @@ export default function Products() {
                       </TableCell>
                       <TableCell className="font-semibold text-purple-600">
                         R$ {product.price.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="font-semibold text-red-600">
+                        R$ {(product.cost_price || 0).toFixed(2)}
                       </TableCell>
                       <TableCell>
                         <div className="text-xs">
@@ -432,15 +505,15 @@ export default function Products() {
 
       {/* Dialog para editar produto */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Editar Produto</DialogTitle>
             <DialogDescription>
-              Altere as informações do produto
+              Altere as informações do produto e gerencie seus itens
             </DialogDescription>
           </DialogHeader>
           {editingProduct && (
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-96 overflow-y-auto">
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   <Package className="w-4 h-4" />
@@ -482,7 +555,75 @@ export default function Products() {
                 />
               </div>
 
-              <div className="flex gap-2 justify-end">
+              <div className="border-t pt-4">
+                <h3 className="text-sm font-semibold text-purple-700 mb-3">Gerenciar Itens</h3>
+                <div className="space-y-3">
+                  <Select value={editSelectedItem} onValueChange={setEditSelectedItem}>
+                    <SelectTrigger className="border-purple-200 focus:border-purple-400">
+                      <SelectValue placeholder="Selecione um item" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {items?.map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.name} - R$ {item.price.toFixed(2)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      min="1"
+                      value={editItemQuantity}
+                      onChange={(e) => setEditItemQuantity(parseInt(e.target.value) || 1)}
+                      className="w-20 border-purple-200 focus:border-purple-400"
+                      placeholder="Qtd"
+                    />
+                    <Button 
+                      type="button" 
+                      onClick={addItemToEditingProduct}
+                      variant="outline"
+                      className="border-purple-200 text-purple-600 hover:bg-purple-50"
+                    >
+                      Adicionar
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {editingProductItems.length > 0 && (
+                <div className="border-t pt-4">
+                  <h3 className="text-sm font-semibold text-purple-700 mb-3">Itens do Produto</h3>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {editingProductItems.map((productItem, index) => {
+                      const item = items?.find(i => i.id === productItem.item_id);
+                      return (
+                        <div key={index} className="flex items-center justify-between p-2 bg-purple-50 rounded">
+                          <div className="text-sm">
+                            <span className="font-medium">{item?.name}</span>
+                            <span className="text-gray-600 ml-2">x{productItem.quantity}</span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeItemFromEditingProduct(index)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      );
+                    })}
+                    <div className="text-xs text-gray-600 pt-2 border-t">
+                      Custo total dos itens: R$ {calculateEditingProductCost().toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 justify-end pt-4 border-t">
                 <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                   Cancelar
                 </Button>

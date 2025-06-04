@@ -48,7 +48,9 @@ export default function OrdersExtract() {
       totalRevenue += order.total_amount;
       
       (order as any).order_items?.forEach((item: any) => {
-        totalCost += (item.products?.cost_price || 0) * item.quantity;
+        // Corrigido: usar cost_price em vez de price para o cálculo de custo
+        const productCostPrice = item.products?.cost_price || 0;
+        totalCost += productCostPrice * item.quantity;
       });
     });
 
@@ -128,6 +130,7 @@ export default function OrdersExtract() {
             </TableHeader>
             <TableBody>
               {extractData?.map((order) => {
+                // Corrigido: usar cost_price para cálculo correto do custo
                 const orderCost = (order as any).order_items?.reduce((sum: number, item: any) => 
                   sum + ((item.products?.cost_price || 0) * item.quantity), 0) || 0;
                 const orderProfit = order.total_amount - orderCost;

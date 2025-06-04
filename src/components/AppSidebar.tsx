@@ -1,4 +1,3 @@
-
 import { 
   Home, 
   Users, 
@@ -9,7 +8,9 @@ import {
   Package,
   CreditCard,
   BarChart3,
-  Sparkles
+  Sparkles,
+  FileText,
+  Clock
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -35,6 +36,11 @@ const navigationItems = [
     title: "Pedidos",
     url: "/orders",
     icon: Calendar,
+  },
+  {
+    title: "Extrato de Pedidos",
+    url: "/orders-extract",
+    icon: FileText,
   },
   {
     title: "Clientes",
@@ -63,6 +69,11 @@ const managementItems = [
     title: "Pagamentos",
     url: "/payments",
     icon: CreditCard,
+  },
+  {
+    title: "Configurações de Prioridade",
+    url: "/priority-settings",
+    icon: Clock,
   },
 ];
 
