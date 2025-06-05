@@ -1,3 +1,4 @@
+
 import { 
   Home, 
   Users, 
@@ -10,7 +11,7 @@ import {
   BarChart3,
   Sparkles,
   FileText,
-  Clock
+  Monitor
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -36,6 +37,11 @@ const navigationItems = [
     title: "Pedidos",
     url: "/orders",
     icon: Calendar,
+  },
+  {
+    title: "Monitoramento",
+    url: "/monitoring",
+    icon: Monitor,
   },
   {
     title: "Extrato de Pedidos",
@@ -69,11 +75,6 @@ const managementItems = [
     title: "Pagamentos",
     url: "/payments",
     icon: CreditCard,
-  },
-  {
-    title: "Configurações de Prioridade",
-    url: "/priority-settings",
-    icon: Clock,
   },
 ];
 

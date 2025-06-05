@@ -2,7 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, Package, Users, TrendingUp } from "lucide-react";
+import { DollarSign, Package, Users, TrendingUp, MapPin } from "lucide-react";
 
 export default function Dashboard() {
   const { data: stats } = useQuery({
@@ -20,24 +20,49 @@ export default function Dashboard() {
         .select("*", { count: "exact", head: true });
       if (customersError) throw customersError;
 
-      // Buscar itens de pedidos para ranking por quantidade
+      // Buscar itens de pedidos para rankings
       const { data: orderItems, error: itemsError } = await supabase
         .from("order_items")
         .select(`
           quantity,
-          products(name)
+          products(name),
+          order_id,
+          orders(customer_id, neighborhood_id, customers(name), neighborhoods(name))
         `);
       if (itemsError) throw itemsError;
 
       // Calcular ranking por quantidade de produtos
       const productRanking: { [key: string]: number } = {};
+      const customerRanking: { [key: string]: number } = {};
+      const neighborhoodRanking: { [key: string]: number } = {};
+
       orderItems?.forEach(item => {
         const productName = item.products?.name || "Produto sem nome";
+        const customerName = (item.orders as any)?.customers?.name || "Cliente sem nome";
+        const neighborhoodName = (item.orders as any)?.neighborhoods?.name || "Bairro sem nome";
+        
+        // Ranking por produto
         productRanking[productName] = (productRanking[productName] || 0) + item.quantity;
+        
+        // Ranking por cliente (por quantidade de produtos comprados)
+        customerRanking[customerName] = (customerRanking[customerName] || 0) + item.quantity;
+        
+        // Ranking por bairro (por quantidade de produtos vendidos)
+        neighborhoodRanking[neighborhoodName] = (neighborhoodRanking[neighborhoodName] || 0) + item.quantity;
       });
 
-      // Ordenar produtos por quantidade vendida
+      // Ordenar rankings
       const topProducts = Object.entries(productRanking)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5)
+        .map(([name, quantity]) => ({ name, quantity }));
+
+      const topCustomers = Object.entries(customerRanking)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5)
+        .map(([name, quantity]) => ({ name, quantity }));
+
+      const topNeighborhoods = Object.entries(neighborhoodRanking)
         .sort(([, a], [, b]) => b - a)
         .slice(0, 5)
         .map(([name, quantity]) => ({ name, quantity }));
@@ -60,7 +85,9 @@ export default function Dashboard() {
         totalRevenue,
         totalCustomers: customersCount || 0,
         monthlyOrders: monthlyOrders.length,
-        topProducts
+        topProducts,
+        topCustomers,
+        topNeighborhoods
       };
     },
   });
@@ -132,28 +159,76 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-        <CardHeader>
-          <CardTitle className="text-purple-700">Produtos Mais Vendidos (por Quantidade)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {stats?.topProducts?.map((product, index) => (
-              <div key={product.name} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-semibold">
-                    {index + 1}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="text-purple-700">Produtos Mais Vendidos</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {stats?.topProducts?.map((product, index) => (
+                <div key={product.name} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-semibold">
+                      {index + 1}
+                    </div>
+                    <span className="font-medium">{product.name}</span>
                   </div>
-                  <span className="font-medium">{product.name}</span>
+                  <span className="text-purple-600 font-semibold">
+                    {product.quantity} unidades
+                  </span>
                 </div>
-                <span className="text-purple-600 font-semibold">
-                  {product.quantity} unidades
-                </span>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="text-blue-700">Clientes Mais Ativos</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {stats?.topCustomers?.map((customer, index) => (
+                <div key={customer.name} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold">
+                      {index + 1}
+                    </div>
+                    <span className="font-medium">{customer.name}</span>
+                  </div>
+                  <span className="text-blue-600 font-semibold">
+                    {customer.quantity} produtos
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="text-green-700">Bairros Mais Ativos</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {stats?.topNeighborhoods?.map((neighborhood, index) => (
+                <div key={neighborhood.name} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center text-green-600 font-semibold">
+                      {index + 1}
+                    </div>
+                    <span className="font-medium">{neighborhood.name}</span>
+                  </div>
+                  <span className="text-green-600 font-semibold">
+                    {neighborhood.quantity} produtos
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
