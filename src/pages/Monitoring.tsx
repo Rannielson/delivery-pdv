@@ -1,11 +1,21 @@
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, MapPin, DollarSign } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Clock, MapPin, DollarSign, Archive } from "lucide-react";
+import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
+import { useState } from "react";
+import { useWebhook } from "@/hooks/useWebhook";
+import { toast } from "sonner";
 
 export default function Monitoring() {
+  const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const queryClient = useQueryClient();
+  const { sendWebhook } = useWebhook();
+
   const { data: orders } = useQuery({
     queryKey: ["monitoring-orders"],
     queryFn: async () => {
@@ -37,6 +47,83 @@ export default function Monitoring() {
     },
   });
 
+  const updateOrderStatusMutation = useMutation({
+    mutationFn: async ({ orderId, newStatus }: { orderId: string; newStatus: string }) => {
+      const { data, error } = await supabase
+        .from("orders")
+        .update({ 
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", orderId)
+        .select(`
+          *,
+          customers(name, phone),
+          neighborhoods(name),
+          payment_methods(name)
+        `)
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (updatedOrder) => {
+      queryClient.invalidateQueries({ queryKey: ["monitoring-orders"] });
+      
+      // Enviar webhook
+      const items = getOrderItems(updatedOrder.id);
+      const descricaoItens = items.map(item => 
+        `${item.quantity}x ${item.products?.name}`
+      ).join(", ");
+
+      const valorTotalComEntrega = updatedOrder.total_amount + updatedOrder.delivery_fee;
+
+      sendWebhook({
+        nomeCliente: (updatedOrder as any).customers?.name || "",
+        telefone: (updatedOrder as any).customers?.phone || "",
+        dataPedido: new Date(updatedOrder.created_at).toLocaleString('pt-BR'),
+        descricaoPedido: descricaoItens,
+        valorTotal: updatedOrder.total_amount,
+        valorEntrega: updatedOrder.delivery_fee,
+        valorTotalComEntrega: valorTotalComEntrega,
+        statusPedido: updatedOrder.status,
+        observacoes: updatedOrder.notes || "",
+        numeroPedido: updatedOrder.order_number?.toString() || updatedOrder.id,
+        formaPagamento: (updatedOrder as any).payment_methods?.name || "",
+        enderecoEntrega: "",
+        precisaTroco: false,
+        valorTroco: 0
+      });
+      
+      toast.success("Status do pedido atualizado com sucesso!");
+    },
+    onError: () => {
+      toast.error("Erro ao atualizar status do pedido");
+    },
+  });
+
+  const bulkFinalizeMutation = useMutation({
+    mutationFn: async (orderIds: string[]) => {
+      const { error } = await supabase
+        .from("orders")
+        .update({ 
+          status: 'finalizado',
+          updated_at: new Date().toISOString()
+        })
+        .in("id", orderIds);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["monitoring-orders"] });
+      setSelectedOrders([]);
+      toast.success("Pedidos finalizados com sucesso!");
+    },
+    onError: () => {
+      toast.error("Erro ao finalizar pedidos");
+    },
+  });
+
   const getOrderItems = (orderId: string) => {
     return orderItems?.filter(item => item.order_id === orderId) || [];
   };
@@ -48,34 +135,13 @@ export default function Monitoring() {
     ).join(", ");
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'em_producao': return 'bg-blue-100 text-blue-800';
-      case 'a_caminho': return 'bg-purple-100 text-purple-800';
-      case 'entregue': return 'bg-green-100 text-green-800';
-      case 'cancelado': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'pending': return 'Pedido Aberto';
-      case 'em_producao': return 'Em Produção';
-      case 'a_caminho': return 'A Caminho';
-      case 'entregue': return 'Entregue';
-      case 'cancelado': return 'Cancelado';
-      default: return status;
-    }
-  };
-
   const ordersByStatus = {
     pending: orders?.filter(order => order.status === 'pending') || [],
     em_producao: orders?.filter(order => order.status === 'em_producao') || [],
     a_caminho: orders?.filter(order => order.status === 'a_caminho') || [],
     entregue: orders?.filter(order => order.status === 'entregue') || [],
-    cancelado: orders?.filter(order => order.status === 'cancelado') || []
+    cancelado: orders?.filter(order => order.status === 'cancelado') || [],
+    finalizado: orders?.filter(order => order.status === 'finalizado') || []
   };
 
   const formatDateTime = (dateString: string) => {
@@ -84,6 +150,33 @@ export default function Monitoring() {
       date: date.toLocaleDateString('pt-BR'),
       time: date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     };
+  };
+
+  const handleDragEnd = (result: any) => {
+    if (!result.destination) return;
+
+    const { source, destination, draggableId } = result;
+    
+    if (source.droppableId === destination.droppableId) return;
+
+    const newStatus = destination.droppableId;
+    updateOrderStatusMutation.mutate({ orderId: draggableId, newStatus });
+  };
+
+  const handleOrderSelection = (orderId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedOrders(prev => [...prev, orderId]);
+    } else {
+      setSelectedOrders(prev => prev.filter(id => id !== orderId));
+    }
+  };
+
+  const handleBulkFinalize = () => {
+    if (selectedOrders.length === 0) {
+      toast.error("Selecione pelo menos um pedido");
+      return;
+    }
+    bulkFinalizeMutation.mutate(selectedOrders);
   };
 
   const KanbanColumn = ({ title, status, orders, color }: { 
@@ -103,58 +196,89 @@ export default function Monitoring() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4 max-h-[calc(100vh-300px)] overflow-y-auto">
-          <div className="space-y-4">
-            {orders.map((order) => {
-              const datetime = formatDateTime(order.updated_at);
-              return (
-                <Card key={order.id} className="border border-gray-200 hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-semibold text-gray-900">
-                          {(order as any).customers?.name}
-                        </h3>
-                        <Badge variant="outline" className="text-xs">
-                          #{order.order_number || order.id.slice(0, 8)}
-                        </Badge>
-                      </div>
-                      
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <MapPin className="w-4 h-4" />
-                        {(order as any).neighborhoods?.name}
-                      </div>
-                      
-                      <div className="text-sm text-gray-700">
-                        <strong>Pedido:</strong> {getOrderDescription(order.id) || "Sem itens"}
-                      </div>
-                      
-                      <div className="flex items-center gap-2 text-sm font-semibold text-green-600">
-                        <DollarSign className="w-4 h-4" />
-                        R$ {(order.total_amount + order.delivery_fee).toFixed(2)}
-                      </div>
-                      
-                      <div className="flex items-center gap-2 text-xs text-gray-500 border-t pt-2">
-                        <Clock className="w-3 h-3" />
-                        <span>Atualizado: {datetime.date} às {datetime.time}</span>
-                      </div>
-                      
-                      {order.notes && (
-                        <div className="text-xs text-gray-600 italic">
-                          <strong>Obs:</strong> {order.notes}
-                        </div>
+          <Droppable droppableId={status}>
+            {(provided) => (
+              <div
+                ref={provided.innerRef}
+                {...provided.droppableProps}
+                className="space-y-4 min-h-[200px]"
+              >
+                {orders.map((order, index) => {
+                  const datetime = formatDateTime(order.updated_at);
+                  return (
+                    <Draggable key={order.id} draggableId={order.id} index={index}>
+                      {(provided, snapshot) => (
+                        <Card 
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          {...provided.dragHandleProps}
+                          className={`border border-gray-200 hover:shadow-md transition-shadow ${
+                            snapshot.isDragging ? 'rotate-2 shadow-lg' : ''
+                          }`}
+                        >
+                          <CardContent className="p-4">
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  {status !== 'finalizado' && (
+                                    <Checkbox
+                                      checked={selectedOrders.includes(order.id)}
+                                      onCheckedChange={(checked) => 
+                                        handleOrderSelection(order.id, checked as boolean)
+                                      }
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  )}
+                                  <h3 className="font-semibold text-gray-900">
+                                    {(order as any).customers?.name}
+                                  </h3>
+                                </div>
+                                <Badge variant="outline" className="text-xs">
+                                  #{order.order_number || order.id.slice(0, 8)}
+                                </Badge>
+                              </div>
+                              
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <MapPin className="w-4 h-4" />
+                                {(order as any).neighborhoods?.name}
+                              </div>
+                              
+                              <div className="text-sm text-gray-700">
+                                <strong>Pedido:</strong> {getOrderDescription(order.id) || "Sem itens"}
+                              </div>
+                              
+                              <div className="flex items-center gap-2 text-sm font-semibold text-green-600">
+                                <DollarSign className="w-4 h-4" />
+                                R$ {(order.total_amount + order.delivery_fee).toFixed(2)}
+                              </div>
+                              
+                              <div className="flex items-center gap-2 text-xs text-gray-500 border-t pt-2">
+                                <Clock className="w-3 h-3" />
+                                <span>Atualizado: {datetime.date} às {datetime.time}</span>
+                              </div>
+                              
+                              {order.notes && (
+                                <div className="text-xs text-gray-600 italic">
+                                  <strong>Obs:</strong> {order.notes}
+                                </div>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
                       )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-            
-            {orders.length === 0 && (
-              <div className="text-center text-gray-500 py-8">
-                Nenhum pedido nesta etapa
+                    </Draggable>
+                  );
+                })}
+                {provided.placeholder}
+                
+                {orders.length === 0 && (
+                  <div className="text-center text-gray-500 py-8">
+                    Nenhum pedido nesta etapa
+                  </div>
+                )}
               </div>
             )}
-          </div>
+          </Droppable>
         </CardContent>
       </Card>
     </div>
@@ -162,49 +286,77 @@ export default function Monitoring() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-violet-600 bg-clip-text text-transparent">
-          Monitoramento de Pedidos
-        </h1>
-        <p className="text-gray-600 mt-2">Acompanhe o status dos pedidos em tempo real</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-violet-600 bg-clip-text text-transparent">
+            Monitoramento de Pedidos
+          </h1>
+          <p className="text-gray-600 mt-2">Acompanhe o status dos pedidos em tempo real</p>
+        </div>
+        
+        {selectedOrders.length > 0 && (
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-600">
+              {selectedOrders.length} pedido(s) selecionado(s)
+            </span>
+            <Button 
+              onClick={handleBulkFinalize}
+              variant="outline"
+              className="flex items-center gap-2"
+              disabled={bulkFinalizeMutation.isPending}
+            >
+              <Archive className="w-4 h-4" />
+              Finalizar Selecionados
+            </Button>
+          </div>
+        )}
       </div>
 
-      <div className="flex gap-6 overflow-x-auto pb-4">
-        <KanbanColumn
-          title="Pedidos Abertos"
-          status="pending"
-          orders={ordersByStatus.pending}
-          color="bg-gradient-to-r from-yellow-500 to-orange-500"
-        />
-        
-        <KanbanColumn
-          title="Em Produção"
-          status="em_producao"
-          orders={ordersByStatus.em_producao}
-          color="bg-gradient-to-r from-blue-500 to-blue-600"
-        />
-        
-        <KanbanColumn
-          title="A Caminho"
-          status="a_caminho"
-          orders={ordersByStatus.a_caminho}
-          color="bg-gradient-to-r from-purple-500 to-violet-600"
-        />
-        
-        <KanbanColumn
-          title="Entregues"
-          status="entregue"
-          orders={ordersByStatus.entregue}
-          color="bg-gradient-to-r from-green-500 to-green-600"
-        />
-        
-        <KanbanColumn
-          title="Cancelados"
-          status="cancelado"
-          orders={ordersByStatus.cancelado}
-          color="bg-gradient-to-r from-red-500 to-red-600"
-        />
-      </div>
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <div className="flex gap-6 overflow-x-auto pb-4">
+          <KanbanColumn
+            title="Pedidos Abertos"
+            status="pending"
+            orders={ordersByStatus.pending}
+            color="bg-gradient-to-r from-yellow-500 to-orange-500"
+          />
+          
+          <KanbanColumn
+            title="Em Produção"
+            status="em_producao"
+            orders={ordersByStatus.em_producao}
+            color="bg-gradient-to-r from-blue-500 to-blue-600"
+          />
+          
+          <KanbanColumn
+            title="A Caminho"
+            status="a_caminho"
+            orders={ordersByStatus.a_caminho}
+            color="bg-gradient-to-r from-purple-500 to-violet-600"
+          />
+          
+          <KanbanColumn
+            title="Entregues"
+            status="entregue"
+            orders={ordersByStatus.entregue}
+            color="bg-gradient-to-r from-green-500 to-green-600"
+          />
+          
+          <KanbanColumn
+            title="Cancelados"
+            status="cancelado"
+            orders={ordersByStatus.cancelado}
+            color="bg-gradient-to-r from-red-500 to-red-600"
+          />
+          
+          <KanbanColumn
+            title="Finalizados"
+            status="finalizado"
+            orders={ordersByStatus.finalizado}
+            color="bg-gradient-to-r from-gray-500 to-gray-600"
+          />
+        </div>
+      </DragDropContext>
     </div>
   );
 }
