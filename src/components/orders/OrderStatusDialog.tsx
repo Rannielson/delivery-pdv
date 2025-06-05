@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { useWebhook } from "@/hooks/useWebhook";
 
 interface OrderStatusDialogProps {
   isOpen: boolean;
@@ -25,6 +26,25 @@ export default function OrderStatusDialog({
 }: OrderStatusDialogProps) {
   const [cancellationReason, setCancellationReason] = useState("");
   const queryClient = useQueryClient();
+  const { sendWebhook } = useWebhook();
+
+  // Buscar itens do pedido para criar a descrição
+  const { data: orderItems } = useQuery({
+    queryKey: ["order-items", editingOrder?.id],
+    queryFn: async () => {
+      if (!editingOrder?.id) return [];
+      const { data, error } = await supabase
+        .from("order_items")
+        .select(`
+          *,
+          products(name)
+        `)
+        .eq("order_id", editingOrder.id);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!editingOrder?.id,
+  });
 
   const updateOrderStatusMutation = useMutation({
     mutationFn: async ({ orderId, status, reason }: { orderId: string; status: string; reason?: string }) => {
@@ -41,12 +61,32 @@ export default function OrderStatusDialog({
         .from("orders")
         .update(updateData)
         .eq("id", orderId)
-        .select()
+        .select(`
+          *,
+          customers(name, phone),
+          neighborhoods(name, delivery_fee)
+        `)
         .single();
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (updatedOrder) => {
+      // Criar descrição do pedido
+      const descricaoItens = orderItems?.map(item => 
+        `${item.quantity}x ${item.products?.name}`
+      ).join(", ") || "";
+
+      // Enviar webhook
+      sendWebhook({
+        nomeCliente: (updatedOrder as any).customers?.name || "",
+        telefone: (updatedOrder as any).customers?.phone || "",
+        dataPedido: new Date(updatedOrder.created_at).toLocaleDateString('pt-BR'),
+        descricaoPedido: descricaoItens,
+        valorTotal: updatedOrder.total_amount,
+        valorEntrega: updatedOrder.delivery_fee,
+        statusPedido: updatedOrder.status
+      });
+
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       setEditingOrder(null);
       onOpenChange(false);

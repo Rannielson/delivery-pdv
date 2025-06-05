@@ -35,7 +35,10 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
-        .select("*");
+        .select(`
+          *,
+          products(name)
+        `);
       if (error) throw error;
       return data;
     },
@@ -49,6 +52,17 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
       return data;
     },
   });
+
+  const getOrderItems = (orderId: string) => {
+    return orderItemsData?.filter(item => item.order_id === orderId) || [];
+  };
+
+  const getOrderDescription = (orderId: string) => {
+    const items = getOrderItems(orderId);
+    return items.map(item => 
+      `${item.quantity}x ${item.products?.name}`
+    ).join(", ");
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -92,6 +106,7 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
           <TableHeader>
             <TableRow>
               <TableHead>Cliente</TableHead>
+              <TableHead>Itens do Pedido</TableHead>
               <TableHead>Bairro</TableHead>
               <TableHead>Pagamento</TableHead>
               <TableHead>Total</TableHead>
@@ -106,6 +121,11 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
               <TableRow key={order.id}>
                 <TableCell className="font-medium">
                   {(order as any).customers?.name}
+                </TableCell>
+                <TableCell className="max-w-xs">
+                  <div className="text-sm text-gray-600 truncate" title={getOrderDescription(order.id)}>
+                    {getOrderDescription(order.id) || "Sem itens"}
+                  </div>
                 </TableCell>
                 <TableCell>{(order as any).neighborhoods?.name}</TableCell>
                 <TableCell>{(order as any).payment_methods?.name}</TableCell>
@@ -142,7 +162,7 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
                       customer={(order as any).customers}
                       neighborhood={(order as any).neighborhoods}
                       paymentMethod={(order as any).payment_methods}
-                      orderItems={orderItemsData?.filter(item => item.order_id === order.id) || []}
+                      orderItems={getOrderItems(order.id)}
                       products={products || []}
                     />
                     <Button
