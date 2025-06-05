@@ -8,9 +8,11 @@ interface WebhookData {
   descricaoPedido: string;
   valorTotal: number;
   valorEntrega: number;
+  valorTotalComEntrega: number;
   statusPedido: string;
   observacoes?: string;
   numeroPedido: string;
+  formaPagamento: string;
   enderecoEntrega?: string;
   precisaTroco?: boolean;
   valorTroco?: number;

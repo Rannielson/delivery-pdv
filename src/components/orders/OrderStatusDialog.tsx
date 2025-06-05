@@ -64,7 +64,8 @@ export default function OrderStatusDialog({
         .select(`
           *,
           customers(name, phone),
-          neighborhoods(name, delivery_fee)
+          neighborhoods(name, delivery_fee),
+          payment_methods(name)
         `)
         .single();
       if (error) throw error;
@@ -76,6 +77,9 @@ export default function OrderStatusDialog({
         `${item.quantity}x ${item.products?.name}`
       ).join(", ") || "";
 
+      // Calcular valor total + entrega
+      const valorTotalComEntrega = updatedOrder.total_amount + updatedOrder.delivery_fee;
+
       // Enviar webhook
       sendWebhook({
         nomeCliente: (updatedOrder as any).customers?.name || "",
@@ -84,12 +88,14 @@ export default function OrderStatusDialog({
         descricaoPedido: descricaoItens,
         valorTotal: updatedOrder.total_amount,
         valorEntrega: updatedOrder.delivery_fee,
+        valorTotalComEntrega: valorTotalComEntrega,
         statusPedido: updatedOrder.status,
         observacoes: updatedOrder.notes || "",
         numeroPedido: updatedOrder.order_number?.toString() || updatedOrder.id,
-        enderecoEntrega: updatedOrder.delivery_address || "",
-        precisaTroco: updatedOrder.needs_change || false,
-        valorTroco: updatedOrder.change_amount || 0
+        formaPagamento: (updatedOrder as any).payment_methods?.name || "",
+        enderecoEntrega: "",
+        precisaTroco: false,
+        valorTroco: 0
       });
 
       queryClient.invalidateQueries({ queryKey: ["orders"] });
