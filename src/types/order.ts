@@ -12,4 +12,7 @@ export interface NewOrder {
   payment_method_id: string;
   notes: string;
   items: OrderItem[];
+  delivery_address?: string;
+  needs_change?: boolean;
+  change_amount?: number;
 }

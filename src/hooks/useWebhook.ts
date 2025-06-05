@@ -11,6 +11,9 @@ interface WebhookData {
   statusPedido: string;
   observacoes?: string;
   numeroPedido: string;
+  enderecoEntrega?: string;
+  precisaTroco?: boolean;
+  valorTroco?: number;
 }
 
 export const useWebhook = () => {

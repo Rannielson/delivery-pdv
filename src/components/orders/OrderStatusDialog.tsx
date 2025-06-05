@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -86,7 +85,10 @@ export default function OrderStatusDialog({
         valorEntrega: updatedOrder.delivery_fee,
         statusPedido: updatedOrder.status,
         observacoes: updatedOrder.notes || "",
-        numeroPedido: updatedOrder.id
+        numeroPedido: updatedOrder.id,
+        enderecoEntrega: "", // Campo não está na tabela orders atualmente
+        precisaTroco: false, // Campo não está na tabela orders atualmente
+        valorTroco: 0 // Campo não está na tabela orders atualmente
       });
 
       queryClient.invalidateQueries({ queryKey: ["orders"] });

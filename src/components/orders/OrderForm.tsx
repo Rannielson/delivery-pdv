@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Plus, ShoppingCart, User, MapPin, CreditCard, FileText } from "lucide-react";
 import { OrderItem, NewOrder } from "@/types/order";
@@ -18,7 +19,10 @@ export default function OrderForm() {
     neighborhood_id: "",
     payment_method_id: "",
     notes: "",
-    items: []
+    items: [],
+    delivery_address: "",
+    needs_change: false,
+    change_amount: 0
   });
   const [selectedProduct, setSelectedProduct] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -101,9 +105,12 @@ export default function OrderForm() {
         if (itemsError) throw itemsError;
       }
 
-      return orderData;
+      return { ...orderData, order };
     },
-    onSuccess: (orderData) => {
+    onSuccess: (data) => {
+      const { order } = data;
+      const orderData = data;
+      
       // Criar descrição do pedido
       const descricaoItens = newOrder.items.map(item => {
         const product = products?.find(p => p.id === item.product_id);
@@ -120,7 +127,10 @@ export default function OrderForm() {
         valorEntrega: orderData.delivery_fee,
         statusPedido: "pending",
         observacoes: orderData.notes || "",
-        numeroPedido: orderData.id
+        numeroPedido: orderData.id,
+        enderecoEntrega: order.delivery_address || "",
+        precisaTroco: order.needs_change || false,
+        valorTroco: order.change_amount || 0
       });
 
       queryClient.invalidateQueries({ queryKey: ["orders"] });
@@ -129,7 +139,10 @@ export default function OrderForm() {
         neighborhood_id: "",
         payment_method_id: "",
         notes: "",
-        items: []
+        items: [],
+        delivery_address: "",
+        needs_change: false,
+        change_amount: 0
       });
       setSelectedProduct("");
       setQuantity(1);
@@ -186,6 +199,10 @@ export default function OrderForm() {
   const totalOrder = newOrder.items.reduce((sum, item) => sum + item.total_price, 0);
   const deliveryFee = neighborhoods?.find(n => n.id === newOrder.neighborhood_id)?.delivery_fee || 0;
   const grandTotal = totalOrder + deliveryFee;
+
+  // Verificar se o método de pagamento selecionado é dinheiro
+  const selectedPaymentMethod = paymentMethods?.find(pm => pm.id === newOrder.payment_method_id);
+  const isCashPayment = selectedPaymentMethod?.name?.toLowerCase().includes('dinheiro');
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -260,6 +277,48 @@ export default function OrderForm() {
               </div>
 
               <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  Endereço de Entrega
+                </Label>
+                <Input
+                  placeholder="Endereço completo para entrega..."
+                  value={newOrder.delivery_address}
+                  onChange={(e) => setNewOrder(prev => ({ ...prev, delivery_address: e.target.value }))}
+                  className="border-purple-200 focus:border-purple-400"
+                />
+              </div>
+
+              {isCashPayment && (
+                <>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="needs-change"
+                        checked={newOrder.needs_change}
+                        onCheckedChange={(checked) => setNewOrder(prev => ({ ...prev, needs_change: !!checked }))}
+                      />
+                      <Label htmlFor="needs-change">Precisa de troco?</Label>
+                    </div>
+                  </div>
+
+                  {newOrder.needs_change && (
+                    <div className="space-y-2">
+                      <Label>Valor do Troco</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="0,00"
+                        value={newOrder.change_amount}
+                        onChange={(e) => setNewOrder(prev => ({ ...prev, change_amount: parseFloat(e.target.value) || 0 }))}
+                        className="border-purple-200 focus:border-purple-400"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="space-y-2 md:col-span-2">
                 <Label className="flex items-center gap-2">
                   <FileText className="w-4 h-4" />
                   Observações
@@ -358,6 +417,12 @@ export default function OrderForm() {
               <span>Taxa de Entrega:</span>
               <span>R$ {deliveryFee.toFixed(2)}</span>
             </div>
+            {isCashPayment && newOrder.needs_change && (
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>Troco para:</span>
+                <span>R$ {newOrder.change_amount?.toFixed(2)}</span>
+              </div>
+            )}
             <div className="border-t pt-2 flex justify-between font-bold text-lg">
               <span>Total:</span>
               <span className="text-purple-600">R$ {grandTotal.toFixed(2)}</span>
