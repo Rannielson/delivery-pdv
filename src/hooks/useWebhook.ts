@@ -9,6 +9,8 @@ interface WebhookData {
   valorTotal: number;
   valorEntrega: number;
   statusPedido: string;
+  observacoes?: string;
+  numeroPedido: string;
 }
 
 export const useWebhook = () => {

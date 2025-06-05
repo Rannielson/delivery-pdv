@@ -84,7 +84,9 @@ export default function OrderStatusDialog({
         descricaoPedido: descricaoItens,
         valorTotal: updatedOrder.total_amount,
         valorEntrega: updatedOrder.delivery_fee,
-        statusPedido: updatedOrder.status
+        statusPedido: updatedOrder.status,
+        observacoes: updatedOrder.notes || "",
+        numeroPedido: updatedOrder.id
       });
 
       queryClient.invalidateQueries({ queryKey: ["orders"] });

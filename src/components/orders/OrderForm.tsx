@@ -118,7 +118,9 @@ export default function OrderForm() {
         descricaoPedido: descricaoItens,
         valorTotal: orderData.total_amount,
         valorEntrega: orderData.delivery_fee,
-        statusPedido: "pending"
+        statusPedido: "pending",
+        observacoes: orderData.notes || "",
+        numeroPedido: orderData.id
       });
 
       queryClient.invalidateQueries({ queryKey: ["orders"] });
