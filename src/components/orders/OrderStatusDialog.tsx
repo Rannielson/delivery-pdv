@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -85,10 +86,10 @@ export default function OrderStatusDialog({
         valorEntrega: updatedOrder.delivery_fee,
         statusPedido: updatedOrder.status,
         observacoes: updatedOrder.notes || "",
-        numeroPedido: updatedOrder.id,
-        enderecoEntrega: "", // Campo não está na tabela orders atualmente
-        precisaTroco: false, // Campo não está na tabela orders atualmente
-        valorTroco: 0 // Campo não está na tabela orders atualmente
+        numeroPedido: updatedOrder.order_number?.toString() || updatedOrder.id,
+        enderecoEntrega: updatedOrder.delivery_address || "",
+        precisaTroco: updatedOrder.needs_change || false,
+        valorTroco: updatedOrder.change_amount || 0
       });
 
       queryClient.invalidateQueries({ queryKey: ["orders"] });
@@ -128,6 +129,10 @@ export default function OrderStatusDialog({
         </DialogHeader>
         {editingOrder && (
           <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>ID do Pedido</Label>
+              <Input value={editingOrder.order_number || editingOrder.id.slice(0, 8)} disabled />
+            </div>
             <div className="space-y-2">
               <Label>Cliente</Label>
               <Input value={(editingOrder as any).customers?.name || ''} disabled />

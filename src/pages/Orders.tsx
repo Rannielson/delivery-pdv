@@ -3,7 +3,6 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { usePriorityUpdater } from "@/hooks/usePriorityUpdater";
 import OrderForm from "@/components/orders/OrderForm";
 import OrderTable from "@/components/orders/OrderTable";
 import OrderStatusDialog from "@/components/orders/OrderStatusDialog";
@@ -13,9 +12,6 @@ export default function Orders() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const queryClient = useQueryClient();
-  
-  // Hook para atualização automática de prioridades
-  usePriorityUpdater();
 
   const deleteOrderMutation = useMutation({
     mutationFn: async (orderId: string) => {

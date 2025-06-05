@@ -164,9 +164,8 @@ export type Database = {
           id: string
           neighborhood_id: string
           notes: string | null
+          order_number: number
           payment_method_id: string
-          priority_label: string | null
-          priority_level: number | null
           status: string
           total_amount: number
           updated_at: string
@@ -179,9 +178,8 @@ export type Database = {
           id?: string
           neighborhood_id: string
           notes?: string | null
+          order_number?: number
           payment_method_id: string
-          priority_label?: string | null
-          priority_level?: number | null
           status?: string
           total_amount: number
           updated_at?: string
@@ -194,9 +192,8 @@ export type Database = {
           id?: string
           neighborhood_id?: string
           notes?: string | null
+          order_number?: number
           payment_method_id?: string
-          priority_label?: string | null
-          priority_level?: number | null
           status?: string
           total_amount?: number
           updated_at?: string
@@ -245,36 +242,6 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      priority_settings: {
-        Row: {
-          created_at: string
-          id: string
-          minutes_threshold: number
-          priority_label: string
-          priority_level: number
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          minutes_threshold: number
-          priority_label: string
-          priority_level?: number
-          status: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          minutes_threshold?: number
-          priority_label?: string
-          priority_level?: number
-          status?: string
           updated_at?: string
         }
         Relationships: []

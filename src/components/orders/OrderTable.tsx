@@ -1,10 +1,13 @@
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Edit, Trash2, AlertTriangle } from "lucide-react";
+import { Edit, Trash2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+import { useWebhook } from "@/hooks/useWebhook";
 import OrderExport from "@/components/OrderExport";
 
 interface OrderTableProps {
@@ -13,6 +16,9 @@ interface OrderTableProps {
 }
 
 export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTableProps) {
+  const queryClient = useQueryClient();
+  const { sendWebhook } = useWebhook();
+
   const { data: orders } = useQuery({
     queryKey: ["orders"],
     queryFn: async () => {
@@ -53,6 +59,55 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
     },
   });
 
+  const updateOrderStatusMutation = useMutation({
+    mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
+      const { data, error } = await supabase
+        .from("orders")
+        .update({ 
+          status, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq("id", orderId)
+        .select(`
+          *,
+          customers(name, phone),
+          neighborhoods(name, delivery_fee)
+        `)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (updatedOrder) => {
+      // Criar descrição do pedido
+      const orderItems = getOrderItems(updatedOrder.id);
+      const descricaoItens = orderItems.map(item => 
+        `${item.quantity}x ${item.products?.name}`
+      ).join(", ") || "";
+
+      // Enviar webhook
+      sendWebhook({
+        nomeCliente: (updatedOrder as any).customers?.name || "",
+        telefone: (updatedOrder as any).customers?.phone || "",
+        dataPedido: new Date(updatedOrder.created_at).toLocaleDateString('pt-BR'),
+        descricaoPedido: descricaoItens,
+        valorTotal: updatedOrder.total_amount,
+        valorEntrega: updatedOrder.delivery_fee,
+        statusPedido: updatedOrder.status,
+        observacoes: updatedOrder.notes || "",
+        numeroPedido: updatedOrder.order_number?.toString() || updatedOrder.id,
+        enderecoEntrega: updatedOrder.delivery_address || "",
+        precisaTroco: updatedOrder.needs_change || false,
+        valorTroco: updatedOrder.change_amount || 0
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      toast.success("Status do pedido atualizado com sucesso!");
+    },
+    onError: (error) => {
+      toast.error("Erro ao atualizar status: " + error.message);
+    },
+  });
+
   const getOrderItems = (orderId: string) => {
     return orderItemsData?.filter(item => item.order_id === orderId) || [];
   };
@@ -86,14 +141,8 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
     }
   };
 
-  const getPriorityColor = (level: number | null) => {
-    if (!level) return '';
-    switch (level) {
-      case 1: return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 2: return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 3: return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
+  const handleStatusChange = (orderId: string, newStatus: string) => {
+    updateOrderStatusMutation.mutate({ orderId, status: newStatus });
   };
 
   return (
@@ -105,13 +154,13 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>ID Pedido</TableHead>
               <TableHead>Cliente</TableHead>
               <TableHead>Itens do Pedido</TableHead>
               <TableHead>Bairro</TableHead>
               <TableHead>Pagamento</TableHead>
               <TableHead>Total</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Prioridade</TableHead>
               <TableHead>Data</TableHead>
               <TableHead>Ações</TableHead>
             </TableRow>
@@ -119,6 +168,9 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
           <TableBody>
             {orders?.map((order) => (
               <TableRow key={order.id}>
+                <TableCell className="font-mono text-sm">
+                  #{order.order_number || order.id.slice(0, 8)}
+                </TableCell>
                 <TableCell className="font-medium">
                   {(order as any).customers?.name}
                 </TableCell>
@@ -133,23 +185,26 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
                   R$ {order.total_amount.toFixed(2)}
                 </TableCell>
                 <TableCell>
-                  <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(order.status)}`}>
-                    {getStatusLabel(order.status)}
-                  </span>
+                  <Select 
+                    value={order.status} 
+                    onValueChange={(value) => handleStatusChange(order.id, value)}
+                    disabled={updateOrderStatusMutation.isPending}
+                  >
+                    <SelectTrigger className={`w-40 ${getStatusColor(order.status)} border-0`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pedido Aberto</SelectItem>
+                      <SelectItem value="em_producao">Em Produção</SelectItem>
+                      <SelectItem value="a_caminho">A Caminho</SelectItem>
+                      <SelectItem value="entregue">Entregue</SelectItem>
+                      <SelectItem value="cancelado">Cancelado</SelectItem>
+                    </SelectContent>
+                  </Select>
                   {order.status === 'cancelado' && order.cancellation_reason && (
                     <div className="text-xs text-gray-500 mt-1">
                       Motivo: {order.cancellation_reason}
                     </div>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {order.priority_level && order.priority_label ? (
-                    <span className={`px-2 py-1 rounded-full text-xs border ${getPriorityColor(order.priority_level)}`}>
-                      <AlertTriangle className="w-3 h-3 inline mr-1" />
-                      {order.priority_label}
-                    </span>
-                  ) : (
-                    <span className="text-gray-400 text-xs">Normal</span>
                   )}
                 </TableCell>
                 <TableCell>
