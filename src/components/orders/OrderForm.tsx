@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Plus, ShoppingCart, User, MapPin, CreditCard, FileText } from "lucide-react";
 import { OrderItem, NewOrder } from "@/types/order";
+import { useWebhook } from "@/hooks/useWebhook";
 
 export default function OrderForm() {
   const [newOrder, setNewOrder] = useState<NewOrder>({
@@ -24,6 +24,7 @@ export default function OrderForm() {
   const [quantity, setQuantity] = useState(1);
 
   const queryClient = useQueryClient();
+  const { sendWebhook } = useWebhook();
 
   const { data: customers } = useQuery({
     queryKey: ["customers"],
@@ -75,9 +76,14 @@ export default function OrderForm() {
           payment_method_id: order.payment_method_id,
           delivery_fee: deliveryFee,
           total_amount: totalAmount,
-          notes: order.notes
+          notes: order.notes,
+          status: 'pending'
         })
-        .select()
+        .select(`
+          *,
+          customers(name, phone),
+          neighborhoods(name, delivery_fee)
+        `)
         .single();
 
       if (orderError) throw orderError;
@@ -97,7 +103,24 @@ export default function OrderForm() {
 
       return orderData;
     },
-    onSuccess: () => {
+    onSuccess: (orderData) => {
+      // Criar descrição do pedido
+      const descricaoItens = newOrder.items.map(item => {
+        const product = products?.find(p => p.id === item.product_id);
+        return `${item.quantity}x ${product?.name}`;
+      }).join(", ");
+
+      // Enviar webhook
+      sendWebhook({
+        nomeCliente: (orderData as any).customers?.name || "",
+        telefone: (orderData as any).customers?.phone || "",
+        dataPedido: new Date(orderData.created_at).toLocaleDateString('pt-BR'),
+        descricaoPedido: descricaoItens,
+        valorTotal: orderData.total_amount,
+        valorEntrega: orderData.delivery_fee,
+        statusPedido: "pending"
+      });
+
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       setNewOrder({
         customer_id: "",
