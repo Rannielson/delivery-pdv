@@ -86,7 +86,8 @@ export default function OrderForm() {
         .select(`
           *,
           customers(name, phone),
-          neighborhoods(name, delivery_fee)
+          neighborhoods(name, delivery_fee),
+          payment_methods(name)
         `)
         .single();
 
@@ -117,6 +118,9 @@ export default function OrderForm() {
         return `${item.quantity}x ${product?.name}`;
       }).join(", ");
 
+      // Calcular valor total + entrega
+      const valorTotalComEntrega = orderData.total_amount + orderData.delivery_fee;
+
       // Enviar webhook
       sendWebhook({
         nomeCliente: (orderData as any).customers?.name || "",
@@ -125,9 +129,11 @@ export default function OrderForm() {
         descricaoPedido: descricaoItens,
         valorTotal: orderData.total_amount,
         valorEntrega: orderData.delivery_fee,
+        valorTotalComEntrega: valorTotalComEntrega,
         statusPedido: "pending",
         observacoes: orderData.notes || "",
         numeroPedido: orderData.id,
+        formaPagamento: (orderData as any).payment_methods?.name || "",
         enderecoEntrega: order.delivery_address || "",
         precisaTroco: order.needs_change || false,
         valorTroco: order.change_amount || 0
