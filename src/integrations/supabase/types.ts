@@ -9,6 +9,45 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      companies: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          owner_id: string | null
+          segment: string
+          stripe_customer_id: string | null
+          subscription_end: string | null
+          subscription_status: string | null
+          subscription_tier: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          owner_id?: string | null
+          segment: string
+          stripe_customer_id?: string | null
+          subscription_end?: string | null
+          subscription_status?: string | null
+          subscription_tier?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          owner_id?: string | null
+          segment?: string
+          stripe_customer_id?: string | null
+          subscription_end?: string | null
+          subscription_status?: string | null
+          subscription_tier?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       cost_centers: {
         Row: {
           active: boolean
@@ -39,6 +78,7 @@ export type Database = {
       customers: {
         Row: {
           active: boolean
+          company_id: string | null
           created_at: string
           id: string
           last_order_date: string | null
@@ -50,6 +90,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          company_id?: string | null
           created_at?: string
           id?: string
           last_order_date?: string | null
@@ -61,6 +102,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          company_id?: string | null
           created_at?: string
           id?: string
           last_order_date?: string | null
@@ -71,6 +113,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "customers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "customers_neighborhood_id_fkey"
             columns: ["neighborhood_id"]
@@ -121,6 +170,7 @@ export type Database = {
       financial_entries: {
         Row: {
           amount: number
+          company_id: string | null
           cost_center_id: string | null
           created_at: string
           description: string
@@ -135,6 +185,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          company_id?: string | null
           cost_center_id?: string | null
           created_at?: string
           description: string
@@ -149,6 +200,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          company_id?: string | null
           cost_center_id?: string | null
           created_at?: string
           description?: string
@@ -162,6 +214,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "financial_entries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "financial_entries_cost_center_id_fkey"
             columns: ["cost_center_id"]
@@ -218,6 +277,7 @@ export type Database = {
       neighborhoods: {
         Row: {
           active: boolean
+          company_id: string | null
           created_at: string
           delivery_fee: number
           id: string
@@ -226,6 +286,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          company_id?: string | null
           created_at?: string
           delivery_fee?: number
           id?: string
@@ -234,13 +295,22 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          company_id?: string | null
           created_at?: string
           delivery_fee?: number
           id?: string
           name?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "neighborhoods_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       order_items: {
         Row: {
@@ -290,6 +360,7 @@ export type Database = {
       orders: {
         Row: {
           cancellation_reason: string | null
+          company_id: string | null
           created_at: string
           customer_id: string
           delivery_fee: number
@@ -304,6 +375,7 @@ export type Database = {
         }
         Insert: {
           cancellation_reason?: string | null
+          company_id?: string | null
           created_at?: string
           customer_id: string
           delivery_fee?: number
@@ -318,6 +390,7 @@ export type Database = {
         }
         Update: {
           cancellation_reason?: string | null
+          company_id?: string | null
           created_at?: string
           customer_id?: string
           delivery_fee?: number
@@ -331,6 +404,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "orders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "orders_customer_id_fkey"
             columns: ["customer_id"]
@@ -357,6 +437,7 @@ export type Database = {
       payment_methods: {
         Row: {
           active: boolean
+          company_id: string | null
           created_at: string
           id: string
           name: string
@@ -364,6 +445,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          company_id?: string | null
           created_at?: string
           id?: string
           name: string
@@ -371,12 +453,21 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          company_id?: string | null
           created_at?: string
           id?: string
           name?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "payment_methods_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       product_items: {
         Row: {
@@ -420,6 +511,7 @@ export type Database = {
       products: {
         Row: {
           active: boolean
+          company_id: string | null
           cost_price: number | null
           created_at: string
           description: string | null
@@ -430,6 +522,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          company_id?: string | null
           cost_price?: number | null
           created_at?: string
           description?: string | null
@@ -440,6 +533,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          company_id?: string | null
           cost_price?: number | null
           created_at?: string
           description?: string | null
@@ -448,7 +542,56 @@ export type Database = {
           price?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "products_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          company_id: string | null
+          cpf: string | null
+          created_at: string | null
+          full_name: string | null
+          id: string
+          phone: string | null
+          role: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id: string
+          phone?: string | null
+          role?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+          role?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       purchase_budget_items: {
         Row: {
@@ -504,6 +647,7 @@ export type Database = {
       purchase_budgets: {
         Row: {
           budget_date: string
+          company_id: string | null
           created_at: string
           description: string | null
           id: string
@@ -514,6 +658,7 @@ export type Database = {
         }
         Insert: {
           budget_date?: string
+          company_id?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -524,6 +669,7 @@ export type Database = {
         }
         Update: {
           budget_date?: string
+          company_id?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -532,7 +678,62 @@ export type Database = {
           total_amount?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "purchase_budgets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscribers: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          email: string
+          id: string
+          stripe_customer_id: string | null
+          subscribed: boolean
+          subscription_end: string | null
+          subscription_tier: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          stripe_customer_id?: string | null
+          subscribed?: boolean
+          subscription_end?: string | null
+          subscription_tier?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          stripe_customer_id?: string | null
+          subscribed?: boolean
+          subscription_end?: string | null
+          subscription_tier?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscribers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

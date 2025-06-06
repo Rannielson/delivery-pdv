@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,12 +5,15 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Zap, ArrowLeft } from "lucide-react";
+import { Zap, ArrowLeft, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const businessSegments = [
   "Delivery de Comida",
-  "Pizzaria",
+  "Pizzaria", 
   "Lanchonete",
   "Restaurante",
   "Açaíteria",
@@ -21,9 +23,16 @@ const businessSegments = [
   "Outros"
 ];
 
+const plans = {
+  start: { name: "Start", price: "49,90" },
+  pro: { name: "Pro", price: "69,90" },
+  premium: { name: "Premium", price: "99,90" }
+};
+
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
-  const [selectedPlan, setSelectedPlan] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<string>("pro");
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -35,24 +44,112 @@ export default function Auth() {
     segment: ""
   });
 
+  const { signIn, signUp } = useAuth();
+
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implementar login com Supabase
-    console.log("Login:", { email: formData.email, password: formData.password });
+    setLoading(true);
+
+    try {
+      const { error } = await signIn(formData.email, formData.password);
+      
+      if (error) {
+        if (error.message.includes('Invalid login credentials')) {
+          toast.error('Email ou senha incorretos');
+        } else {
+          toast.error(error.message);
+        }
+      } else {
+        toast.success('Login realizado com sucesso!');
+      }
+    } catch (error) {
+      toast.error('Erro ao fazer login');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (formData.password !== formData.confirmPassword) {
-      alert("Senhas não conferem!");
+      toast.error("Senhas não conferem!");
       return;
     }
-    // TODO: Implementar registro e redirecionamento para Stripe
-    console.log("Registro:", formData, "Plano:", selectedPlan);
+
+    if (!formData.businessName || !formData.segment) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { data, error } = await signUp(formData.email, formData.password, {
+        full_name: formData.name,
+        phone: formData.phone,
+        cpf: formData.cpf,
+        business_name: formData.businessName,
+        segment: formData.segment
+      });
+
+      if (error) {
+        if (error.message.includes('already registered')) {
+          toast.error('Este email já está cadastrado');
+        } else {
+          toast.error(error.message);
+        }
+        setLoading(false);
+        return;
+      }
+
+      if (data.user) {
+        // Criar empresa
+        const { error: companyError } = await supabase
+          .from('companies')
+          .insert({
+            name: formData.businessName,
+            segment: formData.segment,
+            owner_id: data.user.id
+          });
+
+        if (companyError) {
+          console.error('Error creating company:', companyError);
+        }
+
+        // Redirecionar para checkout do Stripe
+        const session = await supabase.auth.getSession();
+        if (session.data.session) {
+          const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout', {
+            body: { plan: selectedPlan },
+            headers: {
+              Authorization: `Bearer ${session.data.session.access_token}`,
+            },
+          });
+
+          if (checkoutError) {
+            toast.error('Erro ao processar pagamento');
+            setLoading(false);
+            return;
+          }
+
+          // Abrir checkout do Stripe em nova aba
+          if (checkoutData?.url) {
+            window.open(checkoutData.url, '_blank');
+            toast.success('Conta criada! Complete o pagamento na nova aba.');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      toast.error('Erro ao criar conta');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -110,6 +207,7 @@ export default function Auth() {
                         value={formData.email}
                         onChange={(e) => handleInputChange("email", e.target.value)}
                         required
+                        disabled={loading}
                       />
                     </div>
                     
@@ -122,13 +220,16 @@ export default function Auth() {
                         value={formData.password}
                         onChange={(e) => handleInputChange("password", e.target.value)}
                         required
+                        disabled={loading}
                       />
                     </div>
                     
                     <Button 
                       type="submit" 
                       className="w-full bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700"
+                      disabled={loading}
                     >
+                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Entrar
                     </Button>
                     
@@ -142,6 +243,24 @@ export default function Auth() {
                 
                 <TabsContent value="register">
                   <form onSubmit={handleRegister} className="space-y-4">
+                    {/* Seleção de Plano */}
+                    <div className="space-y-2">
+                      <Label>Escolha seu Plano</Label>
+                      <Select value={selectedPlan} onValueChange={setSelectedPlan}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(plans).map(([key, plan]) => (
+                            <SelectItem key={key} value={key}>
+                              {plan.name} - R$ {plan.price}/mês
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* ... keep existing code (form fields) */}
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="name">Nome Completo</Label>
@@ -151,6 +270,7 @@ export default function Auth() {
                           value={formData.name}
                           onChange={(e) => handleInputChange("name", e.target.value)}
                           required
+                          disabled={loading}
                         />
                       </div>
                       
@@ -162,6 +282,7 @@ export default function Auth() {
                           value={formData.phone}
                           onChange={(e) => handleInputChange("phone", e.target.value)}
                           required
+                          disabled={loading}
                         />
                       </div>
                     </div>
@@ -175,6 +296,7 @@ export default function Auth() {
                         value={formData.email}
                         onChange={(e) => handleInputChange("email", e.target.value)}
                         required
+                        disabled={loading}
                       />
                     </div>
                     
@@ -186,6 +308,7 @@ export default function Auth() {
                         value={formData.cpf}
                         onChange={(e) => handleInputChange("cpf", e.target.value)}
                         required
+                        disabled={loading}
                       />
                     </div>
                     
@@ -197,6 +320,7 @@ export default function Auth() {
                         value={formData.businessName}
                         onChange={(e) => handleInputChange("businessName", e.target.value)}
                         required
+                        disabled={loading}
                       />
                     </div>
                     
@@ -226,6 +350,7 @@ export default function Auth() {
                           value={formData.password}
                           onChange={(e) => handleInputChange("password", e.target.value)}
                           required
+                          disabled={loading}
                         />
                       </div>
                       
@@ -238,6 +363,7 @@ export default function Auth() {
                           value={formData.confirmPassword}
                           onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
                           required
+                          disabled={loading}
                         />
                       </div>
                     </div>
@@ -245,8 +371,10 @@ export default function Auth() {
                     <Button 
                       type="submit" 
                       className="w-full bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700"
+                      disabled={loading}
                     >
-                      Criar Conta e Escolher Plano
+                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Criar Conta e Pagar
                     </Button>
                     
                     <p className="text-xs text-center text-gray-500">

@@ -2,7 +2,9 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
+import { AuthProvider } from "@/hooks/useAuth";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "@/pages/Index";
 import Landing from "@/pages/Landing";
 import Auth from "@/pages/Auth";
@@ -24,24 +26,96 @@ const queryClient = new QueryClient();
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/app" element={<Index />} />
-          <Route path="/dashboard" element={<DashboardLayout><Dashboard /></DashboardLayout>} />
-          <Route path="/products" element={<DashboardLayout><Products /></DashboardLayout>} />
-          <Route path="/orders" element={<DashboardLayout><Orders /></DashboardLayout>} />
-          <Route path="/customers" element={<DashboardLayout><Customers /></DashboardLayout>} />
-          <Route path="/neighborhoods" element={<DashboardLayout><Neighborhoods /></DashboardLayout>} />
-          <Route path="/payments" element={<DashboardLayout><Payments /></DashboardLayout>} />
-          <Route path="/items" element={<DashboardLayout><Items /></DashboardLayout>} />
-          <Route path="/monitoring" element={<DashboardLayout><Monitoring /></DashboardLayout>} />
-          <Route path="/orders-extract" element={<DashboardLayout><OrdersExtract /></DashboardLayout>} />
-          <Route path="/financial" element={<DashboardLayout><Financial /></DashboardLayout>} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </Router>
+      <AuthProvider>
+        <Router>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/app" element={<Index />} />
+            <Route 
+              path="/dashboard" 
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout><Dashboard /></DashboardLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/products" 
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout><Products /></DashboardLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/orders" 
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout><Orders /></DashboardLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/customers" 
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout><Customers /></DashboardLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/neighborhoods" 
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout><Neighborhoods /></DashboardLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/payments" 
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout><Payments /></DashboardLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/items" 
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout><Items /></DashboardLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/monitoring" 
+              element={
+                <ProtectedRoute subscriptionRequired="pro">
+                  <DashboardLayout><Monitoring /></DashboardLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/orders-extract" 
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout><OrdersExtract /></DashboardLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/financial" 
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout><Financial /></DashboardLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Router>
+      </AuthProvider>
       <Toaster />
     </QueryClientProvider>
   );
