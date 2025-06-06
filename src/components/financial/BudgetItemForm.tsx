@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -13,46 +13,74 @@ import { toast } from "sonner";
 interface BudgetItemFormProps {
   budgetId: string;
   availableItems: any[];
+  editingItem?: any;
   onSuccess: () => void;
 }
 
-export default function BudgetItemForm({ budgetId, availableItems, onSuccess }: BudgetItemFormProps) {
+export default function BudgetItemForm({ budgetId, availableItems, editingItem, onSuccess }: BudgetItemFormProps) {
   const [itemType, setItemType] = useState<'existing' | 'custom'>('existing');
   const [selectedItemId, setSelectedItemId] = useState<string>('');
   const [quantity, setQuantity] = useState<number>(1);
   const [unitPrice, setUnitPrice] = useState<number>(0);
+  const [description, setDescription] = useState<string>('');
+  const [notes, setNotes] = useState<string>('');
 
-  const createItemMutation = useMutation({
+  // Preencher dados quando editando
+  useEffect(() => {
+    if (editingItem) {
+      setDescription(editingItem.description);
+      setQuantity(Number(editingItem.quantity));
+      setUnitPrice(Number(editingItem.unit_price));
+      setNotes(editingItem.notes || '');
+      
+      if (editingItem.item_id) {
+        setItemType('existing');
+        setSelectedItemId(editingItem.item_id);
+      } else {
+        setItemType('custom');
+      }
+    }
+  }, [editingItem]);
+
+  const saveItemMutation = useMutation({
     mutationFn: async (data: any) => {
-      const { error } = await supabase.from("purchase_budget_items").insert(data);
-      if (error) throw error;
+      if (editingItem) {
+        const { error } = await supabase
+          .from("purchase_budget_items")
+          .update(data)
+          .eq("id", editingItem.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("purchase_budget_items")
+          .insert({ ...data, budget_id: budgetId });
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
-      toast.success("Item adicionado com sucesso!");
+      toast.success(editingItem ? "Item atualizado com sucesso!" : "Item adicionado com sucesso!");
       onSuccess();
     },
     onError: (error) => {
-      toast.error("Erro ao adicionar item: " + error.message);
+      toast.error("Erro ao salvar item: " + error.message);
     },
   });
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
     
     const subtotal = quantity * unitPrice;
     
     const data = {
-      budget_id: budgetId,
       item_id: itemType === 'existing' ? selectedItemId || null : null,
-      description: formData.get("description") as string,
+      description: description,
       unit_price: unitPrice,
       quantity: quantity,
       subtotal: subtotal,
-      notes: formData.get("notes") as string || null,
+      notes: notes || null,
     };
 
-    createItemMutation.mutate(data);
+    saveItemMutation.mutate(data);
   };
 
   const handleItemSelect = (itemId: string) => {
@@ -60,25 +88,28 @@ export default function BudgetItemForm({ budgetId, availableItems, onSuccess }: 
     const item = availableItems.find(i => i.id === itemId);
     if (item) {
       setUnitPrice(Number(item.price));
+      setDescription(item.name);
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <RadioGroup value={itemType} onValueChange={(value: 'existing' | 'custom') => setItemType(value)}>
-        <div className="flex items-center space-x-6">
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="existing" id="existing" />
-            <Label htmlFor="existing">Item Cadastrado</Label>
+      {!editingItem && (
+        <RadioGroup value={itemType} onValueChange={(value: 'existing' | 'custom') => setItemType(value)}>
+          <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="existing" id="existing" />
+              <Label htmlFor="existing">Item Cadastrado</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="custom" id="custom" />
+              <Label htmlFor="custom">Item Personalizado</Label>
+            </div>
           </div>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="custom" id="custom" />
-            <Label htmlFor="custom">Item Personalizado</Label>
-          </div>
-        </div>
-      </RadioGroup>
+        </RadioGroup>
+      )}
 
-      {itemType === 'existing' ? (
+      {itemType === 'existing' && !editingItem ? (
         <Select onValueChange={handleItemSelect} required>
           <SelectTrigger>
             <SelectValue placeholder="Selecione um item" />
@@ -92,19 +123,15 @@ export default function BudgetItemForm({ budgetId, availableItems, onSuccess }: 
           </SelectContent>
         </Select>
       ) : (
-        <Input
-          name="description"
-          placeholder="Descrição do item personalizado"
-          required
-        />
-      )}
-
-      {itemType === 'existing' && selectedItemId && (
-        <Input
-          name="description"
-          placeholder="Descrição adicional (opcional)"
-          defaultValue={availableItems.find(i => i.id === selectedItemId)?.name || ''}
-        />
+        <div>
+          <Label>Descrição</Label>
+          <Input
+            placeholder="Descrição do item"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            required
+          />
+        </div>
       )}
 
       <div className="grid grid-cols-2 gap-4">
@@ -132,24 +159,31 @@ export default function BudgetItemForm({ budgetId, availableItems, onSuccess }: 
         </div>
       </div>
 
-      <div className="p-3 bg-gray-50 rounded-lg">
-        <p className="text-sm text-gray-600">Subtotal:</p>
-        <p className="text-lg font-semibold text-green-600">
+      <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
+        <p className="text-sm text-green-700 font-medium">Subtotal:</p>
+        <p className="text-2xl font-bold text-green-700">
           R$ {(quantity * unitPrice).toFixed(2)}
         </p>
       </div>
 
-      <Textarea
-        name="notes"
-        placeholder="Observações (opcional)"
-      />
+      <div>
+        <Label>Observações</Label>
+        <Textarea
+          placeholder="Observações (opcional)"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
+      </div>
 
       <Button 
         type="submit" 
-        className="w-full"
-        disabled={createItemMutation.isPending}
+        className="w-full bg-purple-600 hover:bg-purple-700"
+        disabled={saveItemMutation.isPending}
       >
-        {createItemMutation.isPending ? "Adicionando..." : "Adicionar Item"}
+        {saveItemMutation.isPending 
+          ? (editingItem ? "Atualizando..." : "Adicionando...") 
+          : (editingItem ? "Atualizar Item" : "Adicionar Item")
+        }
       </Button>
     </form>
   );

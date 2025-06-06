@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,6 +18,7 @@ export default function PurchaseBudgets() {
   const [itemDialog, setItemDialog] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<string | null>(null);
   const [editingBudget, setEditingBudget] = useState<any>(null);
+  const [editingItem, setEditingItem] = useState<any>(null);
 
   const queryClient = useQueryClient();
 
@@ -135,6 +135,39 @@ export default function PurchaseBudgets() {
     },
   });
 
+  // Nova mutation para deletar item
+  const deleteItemMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      const { error } = await supabase
+        .from("purchase_budget_items")
+        .delete()
+        .eq("id", itemId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["budget-items", selectedBudget] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-budgets"] });
+      toast.success("Item removido com sucesso!");
+    },
+  });
+
+  // Nova mutation para atualizar item
+  const updateItemMutation = useMutation({
+    mutationFn: async ({ id, ...data }: any) => {
+      const { error } = await supabase
+        .from("purchase_budget_items")
+        .update(data)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["budget-items", selectedBudget] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-budgets"] });
+      setEditingItem(null);
+      toast.success("Item atualizado com sucesso!");
+    },
+  });
+
   const handleBudgetSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -151,6 +184,17 @@ export default function PurchaseBudgets() {
     }
   };
 
+  const handleItemEdit = (item: any) => {
+    setEditingItem(item);
+    setItemDialog(true);
+  };
+
+  const handleItemDelete = (itemId: string) => {
+    if (confirm("Tem certeza que deseja excluir este item?")) {
+      deleteItemMutation.mutate(itemId);
+    }
+  };
+
   const handleExportPDF = async () => {
     if (!selectedBudget || !budgetItems) return;
 
@@ -158,7 +202,6 @@ export default function PurchaseBudgets() {
     if (!budget) return;
 
     try {
-      // Dinamically import jsPDF
       const { jsPDF } = await import('jspdf');
       const doc = new jsPDF();
 
@@ -238,19 +281,24 @@ export default function PurchaseBudgets() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
+      {/* Header with improved styling */}
+      <div className="flex justify-between items-center bg-gradient-to-r from-purple-50 to-violet-50 p-6 rounded-xl">
         <div className="flex gap-4">
-          <Dialog open={budgetDialog} onOpenChange={setBudgetDialog}>
+          <Dialog open={budgetDialog} onOpenChange={(open) => {
+            setBudgetDialog(open);
+            if (!open) {
+              setEditingBudget(null);
+            }
+          }}>
             <DialogTrigger asChild>
-              <Button className="bg-green-600 hover:bg-green-700">
+              <Button className="bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700">
                 <Plus className="w-4 h-4 mr-2" />
                 Novo Orçamento
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>
+                <DialogTitle className="text-purple-800">
                   {editingBudget ? "Editar" : "Novo"} Orçamento
                 </DialogTitle>
               </DialogHeader>
@@ -272,7 +320,7 @@ export default function PurchaseBudgets() {
                   defaultValue={editingBudget?.budget_date || new Date().toISOString().split('T')[0]}
                   required
                 />
-                <Button type="submit" className="w-full">
+                <Button type="submit" className="w-full bg-purple-600 hover:bg-purple-700">
                   {editingBudget ? "Atualizar" : "Criar"}
                 </Button>
               </form>
@@ -281,22 +329,31 @@ export default function PurchaseBudgets() {
 
           {selectedBudget && (
             <>
-              <Dialog open={itemDialog} onOpenChange={setItemDialog}>
+              <Dialog open={itemDialog} onOpenChange={(open) => {
+                setItemDialog(open);
+                if (!open) {
+                  setEditingItem(null);
+                }
+              }}>
                 <DialogTrigger asChild>
-                  <Button variant="outline">
+                  <Button variant="outline" className="border-purple-200 text-purple-700 hover:bg-purple-50">
                     <Plus className="w-4 h-4 mr-2" />
-                    Adicionar Item
+                    {editingItem ? "Editar Item" : "Adicionar Item"}
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-w-lg">
                   <DialogHeader>
-                    <DialogTitle>Adicionar Item ao Orçamento</DialogTitle>
+                    <DialogTitle className="text-purple-800">
+                      {editingItem ? "Editar" : "Adicionar"} Item ao Orçamento
+                    </DialogTitle>
                   </DialogHeader>
                   <BudgetItemForm
                     budgetId={selectedBudget}
                     availableItems={availableItems || []}
+                    editingItem={editingItem}
                     onSuccess={() => {
                       setItemDialog(false);
+                      setEditingItem(null);
                       queryClient.invalidateQueries({ queryKey: ["budget-items", selectedBudget] });
                       queryClient.invalidateQueries({ queryKey: ["purchase-budgets"] });
                     }}
@@ -304,7 +361,7 @@ export default function PurchaseBudgets() {
                 </DialogContent>
               </Dialog>
 
-              <Button onClick={handleExportPDF} variant="outline">
+              <Button onClick={handleExportPDF} variant="outline" className="border-green-200 text-green-700 hover:bg-green-50">
                 <Download className="w-4 h-4 mr-2" />
                 Exportar PDF
               </Button>
@@ -314,37 +371,37 @@ export default function PurchaseBudgets() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Lista de orçamentos */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+        {/* Lista de orçamentos com melhor visual */}
+        <Card className="lg:col-span-1 border-0 shadow-lg">
+          <CardHeader className="bg-gradient-to-r from-purple-50 to-violet-50">
+            <CardTitle className="flex items-center gap-2 text-purple-800">
               <ShoppingCart className="w-5 h-5" />
               Orçamentos
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4">
             <div className="space-y-3">
               {budgets?.map((budget) => (
                 <div
                   key={budget.id}
-                  className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                  className={`p-4 border rounded-xl cursor-pointer transition-all hover:shadow-md ${
                     selectedBudget === budget.id 
-                      ? 'border-green-500 bg-green-50' 
-                      : 'border-gray-200 hover:border-gray-300'
+                      ? 'border-purple-300 bg-gradient-to-r from-purple-50 to-violet-50 shadow-md' 
+                      : 'border-gray-200 hover:border-purple-200 bg-white'
                   }`}
                   onClick={() => setSelectedBudget(budget.id)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      <h3 className="font-medium">{budget.name}</h3>
+                      <h3 className="font-medium text-gray-900">{budget.name}</h3>
                       <p className="text-sm text-gray-500">
                         {new Date(budget.budget_date).toLocaleDateString('pt-BR')}
                       </p>
-                      <p className="text-sm font-semibold text-green-600">
+                      <p className="text-sm font-semibold text-purple-600">
                         R$ {Number(budget.total_amount).toFixed(2)}
                       </p>
                     </div>
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-2 items-end">
                       <Badge className={getStatusColor(budget.status)}>
                         {getStatusLabel(budget.status)}
                       </Badge>
@@ -352,17 +409,19 @@ export default function PurchaseBudgets() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          className="h-8 w-8 p-0 hover:bg-purple-100"
                           onClick={(e) => {
                             e.stopPropagation();
                             setEditingBudget(budget);
                             setBudgetDialog(true);
                           }}
                         >
-                          <Edit className="w-3 h-3" />
+                          <Edit className="w-3 h-3 text-purple-600" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
+                          className="h-8 w-8 p-0 hover:bg-red-100"
                           onClick={(e) => {
                             e.stopPropagation();
                             if (confirm("Tem certeza que deseja excluir este orçamento?")) {
@@ -370,7 +429,7 @@ export default function PurchaseBudgets() {
                             }
                           }}
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="w-3 h-3 text-red-600" />
                         </Button>
                       </div>
                     </div>
@@ -381,22 +440,23 @@ export default function PurchaseBudgets() {
           </CardContent>
         </Card>
 
-        {/* Detalhes do orçamento */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+        {/* Detalhes do orçamento com melhor organização */}
+        <Card className="lg:col-span-2 border-0 shadow-lg">
+          <CardHeader className="bg-gradient-to-r from-gray-50 to-slate-50">
+            <CardTitle className="flex items-center gap-2 text-gray-800">
               <Calculator className="w-5 h-5" />
               {selectedBudget ? "Detalhes do Orçamento" : "Selecione um Orçamento"}
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6">
             {selectedBudget && budgetItems ? (
-              <div className="space-y-4">
-                {/* Ações do orçamento */}
-                <div className="flex gap-2">
+              <div className="space-y-6">
+                {/* Ações do orçamento com melhor visual */}
+                <div className="flex gap-3 p-4 bg-gray-50 rounded-lg">
                   {budgets?.find(b => b.id === selectedBudget)?.status === 'draft' && (
                     <Button 
                       size="sm"
+                      className="bg-blue-600 hover:bg-blue-700"
                       onClick={() => updateBudgetStatusMutation.mutate({ 
                         id: selectedBudget, 
                         status: 'approved' 
@@ -408,6 +468,7 @@ export default function PurchaseBudgets() {
                   {budgets?.find(b => b.id === selectedBudget)?.status === 'approved' && (
                     <Button 
                       size="sm"
+                      className="bg-green-600 hover:bg-green-700"
                       onClick={() => updateBudgetStatusMutation.mutate({ 
                         id: selectedBudget, 
                         status: 'executed' 
@@ -428,72 +489,91 @@ export default function PurchaseBudgets() {
                   </Button>
                 </div>
 
-                {/* Tabela de itens */}
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Descrição</TableHead>
-                      <TableHead className="text-center">Qtd</TableHead>
-                      <TableHead className="text-right">Valor Unit.</TableHead>
-                      <TableHead className="text-right">Subtotal</TableHead>
-                      <TableHead className="w-20"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {budgetItems.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{item.description}</p>
-                            {item.items && (
-                              <p className="text-sm text-gray-500">
-                                {item.items.category} - {item.items.name}
-                              </p>
-                            )}
-                            {item.notes && (
-                              <p className="text-xs text-gray-400">{item.notes}</p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {Number(item.quantity)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          R$ {Number(item.unit_price).toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-right font-semibold">
-                          R$ {Number(item.subtotal).toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              // Implementar exclusão de item
-                            }}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
+                {/* Tabela de itens melhorada */}
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-gray-50">
+                        <TableHead className="font-semibold">Descrição</TableHead>
+                        <TableHead className="text-center font-semibold">Qtd</TableHead>
+                        <TableHead className="text-right font-semibold">Valor Unit.</TableHead>
+                        <TableHead className="text-right font-semibold">Subtotal</TableHead>
+                        <TableHead className="w-24 text-center font-semibold">Ações</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {budgetItems.map((item) => (
+                        <TableRow key={item.id} className="hover:bg-gray-50">
+                          <TableCell>
+                            <div>
+                              <p className="font-medium text-gray-900">{item.description}</p>
+                              {item.items && (
+                                <p className="text-sm text-gray-500">
+                                  {item.items.category} - {item.items.name}
+                                </p>
+                              )}
+                              {item.notes && (
+                                <p className="text-xs text-gray-400 mt-1">{item.notes}</p>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center font-medium">
+                            {Number(item.quantity)}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            R$ {Number(item.unit_price).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-green-600">
+                            R$ {Number(item.subtotal).toFixed(2)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1 justify-center">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 hover:bg-blue-100"
+                                onClick={() => handleItemEdit(item)}
+                              >
+                                <Edit className="w-3 h-3 text-blue-600" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 hover:bg-red-100"
+                                onClick={() => handleItemDelete(item.id)}
+                              >
+                                <Trash2 className="w-3 h-3 text-red-600" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
 
-                {/* Total */}
-                <div className="border-t pt-4">
-                  <div className="flex justify-end">
+                {/* Total com melhor destaque */}
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-6">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="text-sm text-green-700 font-medium">Total do Orçamento</p>
+                      <p className="text-xs text-green-600">
+                        {budgetItems.length} {budgetItems.length === 1 ? 'item' : 'itens'}
+                      </p>
+                    </div>
                     <div className="text-right">
-                      <p className="text-lg font-semibold">
-                        Total: R$ {Number(budgets?.find(b => b.id === selectedBudget)?.total_amount || 0).toFixed(2)}
+                      <p className="text-3xl font-bold text-green-700">
+                        R$ {Number(budgets?.find(b => b.id === selectedBudget)?.total_amount || 0).toFixed(2)}
                       </p>
                     </div>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="text-center text-gray-500 py-12">
-                Selecione um orçamento para ver os detalhes
+              <div className="text-center text-gray-500 py-16">
+                <ShoppingCart className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                <p className="text-lg font-medium">Selecione um orçamento</p>
+                <p className="text-sm">Escolha um orçamento da lista para ver os detalhes</p>
               </div>
             )}
           </CardContent>
