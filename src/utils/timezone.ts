@@ -1,8 +1,9 @@
 
 export const getCurrentBrazilTime = () => {
   const now = new Date();
-  // Converter para horário de Brasília (UTC-3)
-  const brazilTime = new Date(now.getTime() - (3 * 60 * 60 * 1000));
+  // Converter para horário de São Paulo (UTC-3)
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const brazilTime = new Date(utc + (-3 * 3600000));
   return brazilTime;
 };
 

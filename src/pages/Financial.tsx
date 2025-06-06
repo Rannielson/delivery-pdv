@@ -2,8 +2,7 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building, TrendingUp, ShoppingCart } from "lucide-react";
-import ChartOfAccounts from "@/components/financial/ChartOfAccounts";
+import { TrendingUp, ShoppingCart } from "lucide-react";
 import CashFlow from "@/components/financial/CashFlow";
 import PurchaseBudgets from "@/components/financial/PurchaseBudgets";
 
@@ -25,15 +24,9 @@ export default function Financial() {
       </div>
 
       {/* Main Content */}
-      <Tabs defaultValue="chart-of-accounts" className="space-y-6">
+      <Tabs defaultValue="cash-flow" className="space-y-6">
         <div className="bg-white rounded-xl shadow-lg p-2">
-          <TabsList className="grid w-full grid-cols-3 bg-gray-50">
-            <TabsTrigger 
-              value="chart-of-accounts" 
-              className="flex items-center gap-2 data-[state=active]:bg-emerald-500 data-[state=active]:text-white"
-            >
-              <Building className="w-4 h-4" />
-            </TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 bg-gray-50">
             <TabsTrigger 
               value="cash-flow" 
               className="flex items-center gap-2 data-[state=active]:bg-blue-500 data-[state=active]:text-white"
@@ -48,20 +41,6 @@ export default function Financial() {
             </TabsTrigger>
           </TabsList>
         </div>
-
-        <TabsContent value="chart-of-accounts" className="space-y-6">
-          <Card className="border-0 shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-t-lg">
-              <CardTitle className="flex items-center gap-2 text-emerald-800">
-                <Building className="w-5 h-5" />
-                Plano de Contas
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <ChartOfAccounts />
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         <TabsContent value="cash-flow" className="space-y-6">
           <Card className="border-0 shadow-lg">

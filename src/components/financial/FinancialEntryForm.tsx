@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,19 +9,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { formatBrazilDateTime } from "@/utils/timezone";
 
 interface FinancialEntryFormProps {
-  costCenters: any[];
-  categories: any[];
   onSuccess: () => void;
 }
 
-export default function FinancialEntryForm({ 
-  costCenters, 
-  categories, 
-  onSuccess 
-}: FinancialEntryFormProps) {
+export default function FinancialEntryForm({ onSuccess }: FinancialEntryFormProps) {
   const [entryType, setEntryType] = useState<'income' | 'expense'>('expense');
+
+  const { data: expenseCategories } = useQuery({
+    queryKey: ["expense-categories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("expense_categories")
+        .select("*")
+        .eq("active", true)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const createEntryMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -41,20 +49,23 @@ export default function FinancialEntryForm({
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     
+    const { date, time } = formatBrazilDateTime(new Date());
+    
     const data = {
       description: formData.get("description") as string,
       amount: parseFloat(formData.get("amount") as string),
-      entry_date: formData.get("entry_date") as string,
-      entry_time: formData.get("entry_time") as string,
+      entry_date: formData.get("entry_date") as string || date,
+      entry_time: formData.get("entry_time") as string || time,
       entry_type: entryType,
       expense_category_id: entryType === 'expense' ? 
         (formData.get("expense_category_id") as string || null) : null,
-      cost_center_id: formData.get("cost_center_id") as string || null,
       notes: formData.get("notes") as string || null,
     };
 
     createEntryMutation.mutate(data);
   };
+
+  const { date, time } = formatBrazilDateTime(new Date());
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -88,7 +99,7 @@ export default function FinancialEntryForm({
         <Input
           name="entry_date"
           type="date"
-          defaultValue={new Date().toISOString().split('T')[0]}
+          defaultValue={date}
           required
         />
       </div>
@@ -96,7 +107,7 @@ export default function FinancialEntryForm({
       <Input
         name="entry_time"
         type="time"
-        defaultValue={new Date().toTimeString().slice(0, 5)}
+        defaultValue={time}
         required
       />
 
@@ -106,7 +117,7 @@ export default function FinancialEntryForm({
             <SelectValue placeholder="Categoria de despesa" />
           </SelectTrigger>
           <SelectContent>
-            {categories.map((category) => (
+            {expenseCategories?.map((category) => (
               <SelectItem key={category.id} value={category.id}>
                 {category.name}
               </SelectItem>
@@ -114,19 +125,6 @@ export default function FinancialEntryForm({
           </SelectContent>
         </Select>
       )}
-
-      <Select name="cost_center_id">
-        <SelectTrigger>
-          <SelectValue placeholder="Centro de custo (opcional)" />
-        </SelectTrigger>
-        <SelectContent>
-          {costCenters.map((center) => (
-            <SelectItem key={center.id} value={center.id}>
-              {center.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
 
       <Textarea
         name="notes"

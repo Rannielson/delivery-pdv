@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,16 +6,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { CalendarDays, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { CalendarDays, TrendingUp, TrendingDown, DollarSign, Plus } from "lucide-react";
 import { format, startOfDay, endOfDay, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import FinancialEntryForm from "./FinancialEntryForm";
 
 export default function CashFlow() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [dateRange, setDateRange] = useState(7); // Últimos 7 dias
+  const [dateRange, setDateRange] = useState(7);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   // Buscar lançamentos do período
-  const { data: cashFlowData } = useQuery({
+  const { data: cashFlowData, refetch } = useQuery({
     queryKey: ["cash-flow", selectedDate, dateRange],
     queryFn: async () => {
       const endDate = new Date(selectedDate);
@@ -27,7 +29,6 @@ export default function CashFlow() {
         .select(`
           *,
           expense_categories(name),
-          cost_centers(name),
           orders(order_number)
         `)
         .gte("entry_date", startDate.toISOString().split('T')[0])
@@ -75,8 +76,32 @@ export default function CashFlow() {
     new Date(b.date).getTime() - new Date(a.date).getTime()
   );
 
+  const handleEntrySuccess = () => {
+    setIsDialogOpen(false);
+    refetch();
+  };
+
   return (
     <div className="space-y-6">
+      {/* Botão para novo lançamento */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Fluxo de Caixa</h2>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-green-600 hover:bg-green-700">
+              <Plus className="w-4 h-4 mr-2" />
+              Novo Lançamento
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Novo Lançamento Financeiro</DialogTitle>
+            </DialogHeader>
+            <FinancialEntryForm onSuccess={handleEntrySuccess} />
+          </DialogContent>
+        </Dialog>
+      </div>
+
       {/* Filtros */}
       <Card>
         <CardHeader>
