@@ -80,9 +80,10 @@ export default function ProtectedRoute({ children, subscriptionRequired }: Prote
                 Fazer Upgrade
               </button>
             </CardContent>
-        </Card>
-      </div>
-    );
+          </Card>
+        </div>
+      );
+    }
   }
 
   return <>{children}</>;
