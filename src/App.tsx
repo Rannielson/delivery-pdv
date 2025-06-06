@@ -2,7 +2,7 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
-import DashboardLayout from "@/components/DashboardLayout";
+import { DashboardLayout } from "@/components/DashboardLayout";
 import Index from "@/pages/Index";
 import Dashboard from "@/pages/Dashboard";
 import Products from "@/pages/Products";
