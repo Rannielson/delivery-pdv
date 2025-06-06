@@ -41,6 +41,16 @@ export function useMonitoringData() {
 
   const updateOrderStatusMutation = useMutation({
     mutationFn: async ({ orderId, newStatus }: { orderId: string; newStatus: string }) => {
+      // Primeiro, buscar o pedido atual para verificar se já foi finalizado
+      const { data: currentOrder, error: fetchError } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("id", orderId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+
+      // Atualizar o status do pedido
       const { data, error } = await supabase
         .from("orders")
         .update({ 
@@ -57,10 +67,51 @@ export function useMonitoringData() {
         .single();
       
       if (error) throw error;
+
+      // Se o status mudou para 'finalizado' e não estava finalizado antes
+      if (newStatus === 'finalizado' && currentOrder.status !== 'finalizado') {
+        // Verificar se já existe lançamento financeiro para este pedido
+        const { data: existingEntry, error: entryError } = await supabase
+          .from("financial_entries")
+          .select("id")
+          .eq("order_id", orderId)
+          .eq("entry_type", "income")
+          .single();
+
+        if (entryError && entryError.code !== 'PGRST116') { // PGRST116 = não encontrado
+          console.error("Erro ao verificar lançamento existente:", entryError);
+        }
+
+        // Se não existe lançamento, criar um novo
+        if (!existingEntry) {
+          const totalRevenue = data.total_amount + data.delivery_fee;
+          
+          const { error: insertError } = await supabase
+            .from("financial_entries")
+            .insert({
+              description: `Venda - Pedido #${data.order_number}`,
+              amount: totalRevenue,
+              entry_date: new Date().toISOString().split('T')[0],
+              entry_time: new Date().toTimeString().split(' ')[0].substring(0, 5),
+              entry_type: 'income',
+              order_id: orderId,
+              notes: 'Lançamento automático de venda'
+            });
+
+          if (insertError) {
+            console.error("Erro ao criar lançamento financeiro:", insertError);
+            toast.error("Erro ao registrar receita do pedido");
+          } else {
+            toast.success("Receita registrada automaticamente!");
+          }
+        }
+      }
+      
       return data;
     },
     onSuccess: (updatedOrder) => {
       queryClient.invalidateQueries({ queryKey: ["monitoring-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-entries"] });
       
       // Enviar webhook
       const items = getOrderItems(updatedOrder.id);
@@ -96,6 +147,42 @@ export function useMonitoringData() {
 
   const bulkFinalizeMutation = useMutation({
     mutationFn: async (orderIds: string[]) => {
+      // Para cada pedido, verificar e criar lançamento se necessário
+      for (const orderId of orderIds) {
+        const { data: currentOrder } = await supabase
+          .from("orders")
+          .select("*")
+          .eq("id", orderId)
+          .single();
+
+        if (currentOrder && currentOrder.status !== 'finalizado') {
+          // Verificar se já existe lançamento
+          const { data: existingEntry } = await supabase
+            .from("financial_entries")
+            .select("id")
+            .eq("order_id", orderId)
+            .eq("entry_type", "income")
+            .single();
+
+          if (!existingEntry) {
+            const totalRevenue = currentOrder.total_amount + currentOrder.delivery_fee;
+            
+            await supabase
+              .from("financial_entries")
+              .insert({
+                description: `Venda - Pedido #${currentOrder.order_number}`,
+                amount: totalRevenue,
+                entry_date: new Date().toISOString().split('T')[0],
+                entry_time: new Date().toTimeString().split(' ')[0].substring(0, 5),
+                entry_type: 'income',
+                order_id: orderId,
+                notes: 'Lançamento automático de venda (finalização em lote)'
+              });
+          }
+        }
+      }
+
+      // Atualizar todos os pedidos para finalizado
       const { error } = await supabase
         .from("orders")
         .update({ 
@@ -108,7 +195,8 @@ export function useMonitoringData() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["monitoring-orders"] });
-      toast.success("Pedidos finalizados com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["financial-entries"] });
+      toast.success("Pedidos finalizados e receitas registradas com sucesso!");
     },
     onError: () => {
       toast.error("Erro ao finalizar pedidos");

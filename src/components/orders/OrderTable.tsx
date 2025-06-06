@@ -61,6 +61,16 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
 
   const updateOrderStatusMutation = useMutation({
     mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
+      // Primeiro, buscar o pedido atual
+      const { data: currentOrder, error: fetchError } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("id", orderId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+
+      // Atualizar o status
       const { data, error } = await supabase
         .from("orders")
         .update({ 
@@ -75,7 +85,46 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
           payment_methods(name)
         `)
         .single();
+      
       if (error) throw error;
+
+      // Se mudou para finalizado e não estava finalizado antes
+      if (status === 'finalizado' && currentOrder.status !== 'finalizado') {
+        // Verificar se já existe lançamento
+        const { data: existingEntry, error: entryError } = await supabase
+          .from("financial_entries")
+          .select("id")
+          .eq("order_id", orderId)
+          .eq("entry_type", "income")
+          .single();
+
+        if (entryError && entryError.code !== 'PGRST116') {
+          console.error("Erro ao verificar lançamento:", entryError);
+        }
+
+        if (!existingEntry) {
+          const totalRevenue = data.total_amount + data.delivery_fee;
+          
+          const { error: insertError } = await supabase
+            .from("financial_entries")
+            .insert({
+              description: `Venda - Pedido #${data.order_number}`,
+              amount: totalRevenue,
+              entry_date: new Date().toISOString().split('T')[0],
+              entry_time: new Date().toTimeString().split(' ')[0].substring(0, 5),
+              entry_type: 'income',
+              order_id: orderId,
+              notes: 'Lançamento automático de venda'
+            });
+
+          if (insertError) {
+            console.error("Erro ao criar lançamento:", insertError);
+          } else {
+            toast.success("Receita registrada automaticamente!");
+          }
+        }
+      }
+      
       return data;
     },
     onSuccess: (updatedOrder) => {
@@ -107,6 +156,7 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
       });
 
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-entries"] });
       toast.success("Status do pedido atualizado com sucesso!");
     },
     onError: (error) => {
