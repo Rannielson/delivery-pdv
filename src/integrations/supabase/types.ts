@@ -9,6 +9,33 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      cost_centers: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           active: boolean
@@ -49,6 +76,111 @@ export type Database = {
             columns: ["neighborhood_id"]
             isOneToOne: false
             referencedRelation: "neighborhoods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_categories: {
+        Row: {
+          active: boolean
+          cost_center_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          cost_center_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          cost_center_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_categories_cost_center_id_fkey"
+            columns: ["cost_center_id"]
+            isOneToOne: false
+            referencedRelation: "cost_centers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_entries: {
+        Row: {
+          amount: number
+          cost_center_id: string | null
+          created_at: string
+          description: string
+          entry_date: string
+          entry_time: string
+          entry_type: string
+          expense_category_id: string | null
+          id: string
+          notes: string | null
+          order_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          cost_center_id?: string | null
+          created_at?: string
+          description: string
+          entry_date: string
+          entry_time?: string
+          entry_type: string
+          expense_category_id?: string | null
+          id?: string
+          notes?: string | null
+          order_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          cost_center_id?: string | null
+          created_at?: string
+          description?: string
+          entry_date?: string
+          entry_time?: string
+          entry_type?: string
+          expense_category_id?: string | null
+          id?: string
+          notes?: string | null
+          order_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_entries_cost_center_id_fkey"
+            columns: ["cost_center_id"]
+            isOneToOne: false
+            referencedRelation: "cost_centers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_entries_expense_category_id_fkey"
+            columns: ["expense_category_id"]
+            isOneToOne: false
+            referencedRelation: "expense_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_entries_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -314,6 +446,90 @@ export type Database = {
           id?: string
           name?: string
           price?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      purchase_budget_items: {
+        Row: {
+          budget_id: string
+          created_at: string
+          description: string
+          id: string
+          item_id: string | null
+          notes: string | null
+          quantity: number
+          subtotal: number
+          unit_price: number
+        }
+        Insert: {
+          budget_id: string
+          created_at?: string
+          description: string
+          id?: string
+          item_id?: string | null
+          notes?: string | null
+          quantity?: number
+          subtotal: number
+          unit_price: number
+        }
+        Update: {
+          budget_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          item_id?: string | null
+          notes?: string | null
+          quantity?: number
+          subtotal?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_budget_items_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_budgets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_budget_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_budgets: {
+        Row: {
+          budget_date: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          status: string
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          budget_date?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          status?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          budget_date?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          status?: string
+          total_amount?: number
           updated_at?: string
         }
         Relationships: []

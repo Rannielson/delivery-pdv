@@ -1,47 +1,44 @@
 
-import React from "react";
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { DashboardLayout } from "./components/DashboardLayout";
-import Dashboard from "./pages/Dashboard";
-import Items from "./pages/Items";
-import Products from "./pages/Products";
-import Orders from "./pages/Orders";
-import OrdersExtract from "./pages/OrdersExtract";
-import Customers from "./pages/Customers";
-import Neighborhoods from "./pages/Neighborhoods";
-import Payments from "./pages/Payments";
-import Monitoring from "./pages/Monitoring";
-import NotFound from "./pages/NotFound";
+import { Toaster } from "@/components/ui/sonner";
+import DashboardLayout from "@/components/DashboardLayout";
+import Index from "@/pages/Index";
+import Dashboard from "@/pages/Dashboard";
+import Products from "@/pages/Products";
+import Orders from "@/pages/Orders";
+import Customers from "@/pages/Customers";
+import Neighborhoods from "@/pages/Neighborhoods";
+import Payments from "@/pages/Payments";
+import Items from "@/pages/Items";
+import Monitoring from "@/pages/Monitoring";
+import OrdersExtract from "@/pages/OrdersExtract";
+import Financial from "@/pages/Financial";
+import NotFound from "@/pages/NotFound";
+import "./App.css";
 
 const queryClient = new QueryClient();
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <DashboardLayout>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/items" element={<Items />} />
-              <Route path="/products" element={<Products />} />
-              <Route path="/orders" element={<Orders />} />
-              <Route path="/orders-extract" element={<OrdersExtract />} />
-              <Route path="/customers" element={<Customers />} />
-              <Route path="/neighborhoods" element={<Neighborhoods />} />
-              <Route path="/payments" element={<Payments />} />
-              <Route path="/monitoring" element={<Monitoring />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </DashboardLayout>
-        </BrowserRouter>
-      </TooltipProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/dashboard" element={<DashboardLayout><Dashboard /></DashboardLayout>} />
+          <Route path="/products" element={<DashboardLayout><Products /></DashboardLayout>} />
+          <Route path="/orders" element={<DashboardLayout><Orders /></DashboardLayout>} />
+          <Route path="/customers" element={<DashboardLayout><Customers /></DashboardLayout>} />
+          <Route path="/neighborhoods" element={<DashboardLayout><Neighborhoods /></DashboardLayout>} />
+          <Route path="/payments" element={<DashboardLayout><Payments /></DashboardLayout>} />
+          <Route path="/items" element={<DashboardLayout><Items /></DashboardLayout>} />
+          <Route path="/monitoring" element={<DashboardLayout><Monitoring /></DashboardLayout>} />
+          <Route path="/orders-extract" element={<DashboardLayout><OrdersExtract /></DashboardLayout>} />
+          <Route path="/financial" element={<DashboardLayout><Financial /></DashboardLayout>} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Router>
+      <Toaster />
     </QueryClientProvider>
   );
 }
