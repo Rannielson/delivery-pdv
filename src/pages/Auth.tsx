@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,6 +90,7 @@ export default function Auth() {
     setLoading(true);
 
     try {
+      console.log('Iniciando registro do usuário...');
       const { data, error } = await signUp(formData.email, formData.password, {
         full_name: formData.name,
         phone: formData.phone,
@@ -98,6 +100,7 @@ export default function Auth() {
       });
 
       if (error) {
+        console.error('Erro no signup:', error);
         if (error.message.includes('already registered')) {
           toast.error('Este email já está cadastrado');
         } else {
@@ -107,45 +110,65 @@ export default function Auth() {
         return;
       }
 
+      console.log('Usuário criado com sucesso:', data.user?.id);
+
       if (data.user) {
-        // Criar empresa
-        const { error: companyError } = await supabase
-          .from('companies')
-          .insert({
-            name: formData.businessName,
-            segment: formData.segment,
-            owner_id: data.user.id
-          });
+        try {
+          // Obter sessão atual
+          console.log('Obtendo sessão para checkout...');
+          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+          
+          if (sessionError) {
+            console.error('Erro ao obter sessão:', sessionError);
+            throw sessionError;
+          }
 
-        if (companyError) {
-          console.error('Error creating company:', companyError);
-        }
-
-        // Redirecionar para checkout do Stripe
-        const session = await supabase.auth.getSession();
-        if (session.data.session) {
-          const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout', {
-            body: { plan: selectedPlan },
-            headers: {
-              Authorization: `Bearer ${session.data.session.access_token}`,
-            },
-          });
-
-          if (checkoutError) {
-            toast.error('Erro ao processar pagamento');
+          if (!sessionData.session) {
+            console.error('Nenhuma sessão encontrada');
+            toast.error('Erro de autenticação. Tente fazer login.');
             setLoading(false);
             return;
           }
 
-          // Abrir checkout do Stripe em nova aba
-          if (checkoutData?.url) {
-            window.open(checkoutData.url, '_blank');
-            toast.success('Conta criada! Complete o pagamento na nova aba.');
+          console.log('Sessão obtida, criando checkout para plano:', selectedPlan);
+          
+          // Criar checkout do Stripe
+          const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout', {
+            body: { plan: selectedPlan },
+            headers: {
+              Authorization: `Bearer ${sessionData.session.access_token}`,
+            },
+          });
+
+          if (checkoutError) {
+            console.error('Erro no checkout:', checkoutError);
+            toast.error('Erro ao processar pagamento: ' + checkoutError.message);
+            setLoading(false);
+            return;
           }
+
+          console.log('Checkout criado com sucesso:', checkoutData);
+
+          // Verificar se temos a URL do checkout
+          if (checkoutData?.url) {
+            console.log('Redirecionando para:', checkoutData.url);
+            toast.success('Conta criada! Redirecionando para pagamento...');
+            
+            // Aguardar um pouco antes de redirecionar
+            setTimeout(() => {
+              window.location.href = checkoutData.url;
+            }, 1000);
+          } else {
+            console.error('URL de checkout não encontrada:', checkoutData);
+            toast.error('Erro ao obter URL de pagamento');
+          }
+        } catch (checkoutError) {
+          console.error('Erro durante processo de checkout:', checkoutError);
+          toast.error('Erro ao processar pagamento');
         }
       }
     } catch (error) {
-      console.error('Registration error:', error);
+      console.error('Erro geral no registro:', error);
       toast.error('Erro ao criar conta');
     } finally {
       setLoading(false);
@@ -260,7 +283,7 @@ export default function Auth() {
                       </Select>
                     </div>
 
-                    {/* ... keep existing code (form fields) */}
+                    {/* Form fields */}
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="name">Nome Completo</Label>
