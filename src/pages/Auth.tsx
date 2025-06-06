@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -114,24 +113,21 @@ export default function Auth() {
 
       if (data.user) {
         try {
-          // Obter sessão atual
-          console.log('Obtendo sessão para checkout...');
+          console.log('Criando checkout para plano:', selectedPlan);
+          
+          // Aguardar um pouco para garantir que a sessão esteja disponível
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Obter a sessão mais recente
           const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
           
-          if (sessionError) {
-            console.error('Erro ao obter sessão:', sessionError);
-            throw sessionError;
-          }
-
-          if (!sessionData.session) {
-            console.error('Nenhuma sessão encontrada');
-            toast.error('Erro de autenticação. Tente fazer login.');
+          if (sessionError || !sessionData.session) {
+            console.error('Erro de sessão:', sessionError);
+            toast.error('Conta criada com sucesso! Faça login e tente novamente o checkout.');
             setLoading(false);
             return;
           }
 
-          console.log('Sessão obtida, criando checkout para plano:', selectedPlan);
-          
           // Criar checkout do Stripe
           const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout', {
             body: { plan: selectedPlan },
@@ -142,7 +138,7 @@ export default function Auth() {
 
           if (checkoutError) {
             console.error('Erro no checkout:', checkoutError);
-            toast.error('Erro ao processar pagamento: ' + checkoutError.message);
+            toast.error('Conta criada! Erro ao processar pagamento: ' + checkoutError.message);
             setLoading(false);
             return;
           }
@@ -154,17 +150,17 @@ export default function Auth() {
             console.log('Redirecionando para:', checkoutData.url);
             toast.success('Conta criada! Redirecionando para pagamento...');
             
-            // Aguardar um pouco antes de redirecionar
+            // Redirecionar para o checkout
             setTimeout(() => {
               window.location.href = checkoutData.url;
             }, 1000);
           } else {
             console.error('URL de checkout não encontrada:', checkoutData);
-            toast.error('Erro ao obter URL de pagamento');
+            toast.error('Conta criada! Erro ao obter URL de pagamento');
           }
         } catch (checkoutError) {
           console.error('Erro durante processo de checkout:', checkoutError);
-          toast.error('Erro ao processar pagamento');
+          toast.success('Conta criada com sucesso! Erro no checkout - tente fazer login e acessar novamente.');
         }
       }
     } catch (error) {
