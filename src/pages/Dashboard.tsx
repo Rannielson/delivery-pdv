@@ -2,7 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, Package, Users, TrendingUp, MapPin } from "lucide-react";
+import { DollarSign, Package, Users, TrendingUp, ShoppingBag, Clock, Calendar, Target } from "lucide-react";
 
 export default function Dashboard() {
   const { data: stats } = useQuery({
@@ -93,136 +93,189 @@ export default function Dashboard() {
   });
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-violet-600 bg-clip-text text-transparent">
-          Dashboard
-        </h1>
-        <p className="text-gray-600 mt-2">Visão geral do seu negócio</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-purple-50 p-8">
+      {/* Header moderno */}
+      <div className="mb-12">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-5xl font-bold bg-gradient-to-r from-purple-600 via-violet-600 to-indigo-600 bg-clip-text text-transparent mb-2">
+              Dashboard Executivo
+            </h1>
+            <p className="text-xl text-gray-600">Insights e métricas do seu negócio em tempo real</p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-gray-500">Última atualização</p>
+            <p className="text-lg font-semibold text-gray-700">
+              {new Date().toLocaleDateString('pt-BR', { 
+                day: '2-digit', 
+                month: 'long', 
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-          <CardContent className="p-6">
+      {/* Cards de métricas principais */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+        <Card className="relative overflow-hidden border-0 shadow-2xl bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+          <CardContent className="p-8">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-purple-600 font-medium">Total de Pedidos</p>
-                <p className="text-2xl font-bold text-purple-700">
+                <p className="text-blue-100 font-medium mb-1">Total de Pedidos</p>
+                <p className="text-4xl font-bold">
                   {stats?.totalOrders || 0}
                 </p>
+                <p className="text-blue-100 text-sm mt-1">+{stats?.monthlyOrders || 0} este mês</p>
               </div>
-              <Package className="w-8 h-8 text-purple-500" />
+              <div className="bg-white/20 p-4 rounded-full">
+                <ShoppingBag className="w-8 h-8" />
+              </div>
             </div>
           </CardContent>
+          <div className="absolute -bottom-2 -right-2 w-24 h-24 bg-white/10 rounded-full" />
         </Card>
 
-        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-          <CardContent className="p-6">
+        <Card className="relative overflow-hidden border-0 shadow-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white">
+          <CardContent className="p-8">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-green-600 font-medium">Receita Total</p>
-                <p className="text-2xl font-bold text-green-700">
+                <p className="text-emerald-100 font-medium mb-1">Receita Total</p>
+                <p className="text-4xl font-bold">
                   R$ {stats?.totalRevenue?.toFixed(2) || '0.00'}
                 </p>
+                <p className="text-emerald-100 text-sm mt-1">Receita acumulada</p>
               </div>
-              <DollarSign className="w-8 h-8 text-green-500" />
+              <div className="bg-white/20 p-4 rounded-full">
+                <DollarSign className="w-8 h-8" />
+              </div>
             </div>
           </CardContent>
+          <div className="absolute -bottom-2 -right-2 w-24 h-24 bg-white/10 rounded-full" />
         </Card>
 
-        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-          <CardContent className="p-6">
+        <Card className="relative overflow-hidden border-0 shadow-2xl bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+          <CardContent className="p-8">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-600 font-medium">Total de Clientes</p>
-                <p className="text-2xl font-bold text-blue-700">
+                <p className="text-purple-100 font-medium mb-1">Clientes Ativos</p>
+                <p className="text-4xl font-bold">
                   {stats?.totalCustomers || 0}
                 </p>
+                <p className="text-purple-100 text-sm mt-1">Base de clientes</p>
               </div>
-              <Users className="w-8 h-8 text-blue-500" />
+              <div className="bg-white/20 p-4 rounded-full">
+                <Users className="w-8 h-8" />
+              </div>
             </div>
           </CardContent>
+          <div className="absolute -bottom-2 -right-2 w-24 h-24 bg-white/10 rounded-full" />
         </Card>
 
-        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-          <CardContent className="p-6">
+        <Card className="relative overflow-hidden border-0 shadow-2xl bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+          <CardContent className="p-8">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-orange-600 font-medium">Pedidos Este Mês</p>
-                <p className="text-2xl font-bold text-orange-700">
+                <p className="text-orange-100 font-medium mb-1">Meta Mensal</p>
+                <p className="text-4xl font-bold">
                   {stats?.monthlyOrders || 0}
                 </p>
+                <p className="text-orange-100 text-sm mt-1">Pedidos este mês</p>
               </div>
-              <TrendingUp className="w-8 h-8 text-orange-500" />
+              <div className="bg-white/20 p-4 rounded-full">
+                <Target className="w-8 h-8" />
+              </div>
             </div>
           </CardContent>
+          <div className="absolute -bottom-2 -right-2 w-24 h-24 bg-white/10 rounded-full" />
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="text-purple-700">Produtos Mais Vendidos</CardTitle>
+      {/* Cards de rankings */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <Card className="border-0 shadow-xl bg-white/90 backdrop-blur-sm">
+          <CardHeader className="bg-gradient-to-r from-purple-50 to-violet-50 border-b border-purple-100">
+            <CardTitle className="flex items-center gap-3 text-purple-800">
+              <Package className="w-6 h-6" />
+              Top Produtos
+            </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6">
             <div className="space-y-4">
               {stats?.topProducts?.map((product, index) => (
-                <div key={product.name} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-semibold">
+                <div key={product.name} className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-r from-purple-50 to-violet-50 hover:from-purple-100 hover:to-violet-100 transition-all">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-violet-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
                       {index + 1}
                     </div>
-                    <span className="font-medium">{product.name}</span>
+                    <span className="font-semibold text-gray-800">{product.name}</span>
                   </div>
-                  <span className="text-purple-600 font-semibold">
-                    {product.quantity} unidades
-                  </span>
+                  <div className="text-right">
+                    <span className="text-2xl font-bold text-purple-600">
+                      {product.quantity}
+                    </span>
+                    <p className="text-sm text-gray-500">unidades</p>
+                  </div>
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="text-blue-700">Clientes Mais Ativos</CardTitle>
+        <Card className="border-0 shadow-xl bg-white/90 backdrop-blur-sm">
+          <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50 border-b border-blue-100">
+            <CardTitle className="flex items-center gap-3 text-blue-800">
+              <Users className="w-6 h-6" />
+              Top Clientes
+            </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6">
             <div className="space-y-4">
               {stats?.topCustomers?.map((customer, index) => (
-                <div key={customer.name} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold">
+                <div key={customer.name} className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 hover:from-blue-100 hover:to-cyan-100 transition-all">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
                       {index + 1}
                     </div>
-                    <span className="font-medium">{customer.name}</span>
+                    <span className="font-semibold text-gray-800">{customer.name}</span>
                   </div>
-                  <span className="text-blue-600 font-semibold">
-                    {customer.quantity} produtos
-                  </span>
+                  <div className="text-right">
+                    <span className="text-2xl font-bold text-blue-600">
+                      {customer.quantity}
+                    </span>
+                    <p className="text-sm text-gray-500">produtos</p>
+                  </div>
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="text-green-700">Bairros Mais Ativos</CardTitle>
+        <Card className="border-0 shadow-xl bg-white/90 backdrop-blur-sm">
+          <CardHeader className="bg-gradient-to-r from-emerald-50 to-green-50 border-b border-emerald-100">
+            <CardTitle className="flex items-center gap-3 text-emerald-800">
+              <TrendingUp className="w-6 h-6" />
+              Top Bairros
+            </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6">
             <div className="space-y-4">
               {stats?.topNeighborhoods?.map((neighborhood, index) => (
-                <div key={neighborhood.name} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center text-green-600 font-semibold">
+                <div key={neighborhood.name} className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-r from-emerald-50 to-green-50 hover:from-emerald-100 hover:to-green-100 transition-all">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-green-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
                       {index + 1}
                     </div>
-                    <span className="font-medium">{neighborhood.name}</span>
+                    <span className="font-semibold text-gray-800">{neighborhood.name}</span>
                   </div>
-                  <span className="text-green-600 font-semibold">
-                    {neighborhood.quantity} produtos
-                  </span>
+                  <div className="text-right">
+                    <span className="text-2xl font-bold text-emerald-600">
+                      {neighborhood.quantity}
+                    </span>
+                    <p className="text-sm text-gray-500">produtos</p>
+                  </div>
                 </div>
               ))}
             </div>

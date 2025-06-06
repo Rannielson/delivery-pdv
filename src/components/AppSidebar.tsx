@@ -11,7 +11,8 @@ import {
   BarChart3,
   Sparkles,
   FileText,
-  Monitor
+  Monitor,
+  Calculator
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -30,7 +31,7 @@ import {
 const navigationItems = [
   {
     title: "Dashboard",
-    url: "/",
+    url: "/dashboard",
     icon: BarChart3,
   },
   {
@@ -47,6 +48,11 @@ const navigationItems = [
     title: "Extrato de Pedidos",
     url: "/orders-extract",
     icon: FileText,
+  },
+  {
+    title: "Financeiro",
+    url: "/financial",
+    icon: Calculator,
   },
   {
     title: "Clientes",
