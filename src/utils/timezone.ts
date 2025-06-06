@@ -10,6 +10,7 @@ export const formatBrazilDateTime = (date: Date) => {
   const brazilTime = getCurrentBrazilTime();
   return {
     date: brazilTime.toISOString().split('T')[0],
-    time: brazilTime.toTimeString().split(' ')[0].substring(0, 5)
+    time: brazilTime.toTimeString().split(' ')[0].substring(0, 5),
+    brazilDateTime: brazilTime.toISOString()
   };
 };
