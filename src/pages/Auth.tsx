@@ -288,7 +288,7 @@ export default function Auth() {
                           {Object.entries(plans).map(([key, plan]) => (
                             <SelectItem key={key} value={key}>
                               <div className="flex items-center gap-2">
-                                {plan.popular && <Badge variant="secondary" className="text-xs">Popular</Badge>}
+                                {'popular' in plan && plan.popular && <Badge variant="secondary" className="text-xs">Popular</Badge>}
                                 {plan.name} - R$ {plan.price}/mês
                               </div>
                             </SelectItem>
