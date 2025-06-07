@@ -119,9 +119,10 @@ export default function ProtectedRoute({ children, subscriptionRequired }: Prote
                 </Button>
               </div>
             </CardContent>
-        </Card>
-      </div>
-    );
+          </Card>
+        </div>
+      );
+    }
   }
 
   return <>{children}</>;
