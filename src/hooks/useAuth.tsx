@@ -32,16 +32,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   const checkSubscription = async () => {
-    if (!session) {
+    const currentSession = session || (await supabase.auth.getSession()).data.session;
+    
+    if (!currentSession) {
       console.log('No session available for subscription check');
       return;
     }
 
     try {
-      console.log('Checking subscription status...');
+      console.log('Checking subscription status with session...');
       const { data, error } = await supabase.functions.invoke('check-subscription', {
         headers: {
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${currentSession.access_token}`,
         },
       });
 
@@ -67,6 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error('Error checking subscription:', error);
+      throw error;
     }
   };
 
@@ -82,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (event === 'SIGNED_IN' && session) {
           // Aguardar um pouco e verificar assinatura
           setTimeout(() => {
-            checkSubscription();
+            checkSubscription().catch(console.error);
           }, 1000);
         }
 
@@ -104,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
 
       if (session) {
-        checkSubscription();
+        checkSubscription().catch(console.error);
       }
     });
 
@@ -117,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const interval = setInterval(() => {
       console.log('Periodic subscription check...');
-      checkSubscription();
+      checkSubscription().catch(console.error);
     }, 30000); // A cada 30 segundos
 
     return () => clearInterval(interval);

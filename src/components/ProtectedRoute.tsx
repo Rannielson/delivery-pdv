@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -21,7 +22,15 @@ export default function ProtectedRoute({ children, subscriptionRequired }: Prote
 
   const handleRefreshSubscription = async () => {
     console.log('Manual subscription refresh requested');
-    await checkSubscription();
+    toast.info('Verificando assinatura...');
+    
+    try {
+      await checkSubscription();
+      toast.success('Status da assinatura atualizado!');
+    } catch (error) {
+      console.error('Error refreshing subscription:', error);
+      toast.error('Erro ao verificar assinatura. Tente novamente.');
+    }
   };
 
   if (loading) {
@@ -64,7 +73,7 @@ export default function ProtectedRoute({ children, subscriptionRequired }: Prote
                 Verificar Assinatura
               </Button>
               <Button
-                onClick={() => window.location.href = '/'}
+                onClick={() => window.location.href = '/auth'}
                 className="bg-purple-600 text-white hover:bg-purple-700"
               >
                 Assinar Agora
@@ -76,7 +85,7 @@ export default function ProtectedRoute({ children, subscriptionRequired }: Prote
     );
   }
 
-  // Verificar nível da assinatura
+  // Verificar nível da assinatura se necessário
   if (subscriptionRequired && subscription.subscribed) {
     const tierOrder = { start: 1, pro: 2, premium: 3 };
     const userTier = tierOrder[subscription.tier as keyof typeof tierOrder] || 0;
@@ -112,7 +121,7 @@ export default function ProtectedRoute({ children, subscriptionRequired }: Prote
                   Verificar Assinatura
                 </Button>
                 <Button
-                  onClick={() => window.location.href = '/'}
+                  onClick={() => window.location.href = '/auth'}
                   className="bg-purple-600 text-white hover:bg-purple-700"
                 >
                   Fazer Upgrade
