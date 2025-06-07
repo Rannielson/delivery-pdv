@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -5,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Zap, ArrowLeft, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Zap, ArrowLeft, Loader2, Check, Crown, Star } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,15 +26,35 @@ const businessSegments = [
 ];
 
 const plans = {
-  start: { name: "Start", price: "49,90" },
-  pro: { name: "Pro", price: "69,90" },
-  premium: { name: "Premium", price: "99,90" }
+  start: { 
+    name: "Start", 
+    price: "49,90",
+    icon: Star,
+    features: ["Até 100 pedidos/mês", "Dashboard básico", "Suporte por email"],
+    color: "from-blue-500 to-blue-600"
+  },
+  pro: { 
+    name: "Pro", 
+    price: "69,90",
+    icon: Zap,
+    features: ["Pedidos ilimitados", "Relatórios avançados", "Integração completa", "Suporte prioritário"],
+    color: "from-purple-500 to-purple-600",
+    popular: true
+  },
+  premium: { 
+    name: "Premium", 
+    price: "99,90",
+    icon: Crown,
+    features: ["Tudo do Pro", "IA para análise", "Multi-lojas", "Suporte 24/7", "Consultoria"],
+    color: "from-gold-500 to-yellow-600"
+  }
 };
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<string>("pro");
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -44,7 +66,7 @@ export default function Auth() {
     segment: ""
   });
 
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, user, subscription } = useAuth();
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -171,6 +193,146 @@ export default function Auth() {
     }
   };
 
+  const handleUpgrade = async (planKey: string) => {
+    if (!user) {
+      toast.error('Faça login primeiro');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      
+      if (!sessionData.session) {
+        toast.error('Sessão expirada, faça login novamente');
+        return;
+      }
+
+      const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout', {
+        body: { plan: planKey },
+        headers: {
+          Authorization: `Bearer ${sessionData.session.access_token}`,
+        },
+      });
+
+      if (checkoutError) {
+        toast.error('Erro ao processar upgrade: ' + checkoutError.message);
+        return;
+      }
+
+      if (checkoutData?.url) {
+        toast.success('Redirecionando para pagamento...');
+        setTimeout(() => {
+          window.location.href = checkoutData.url;
+        }, 1000);
+      }
+    } catch (error) {
+      toast.error('Erro ao fazer upgrade');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Se o usuário estiver logado, mostrar opções de upgrade
+  if (user && (showUpgrade || !subscription.subscribed)) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-purple-50 flex flex-col">
+        {/* Header */}
+        <header className="bg-white/80 backdrop-blur-lg border-b border-purple-100 p-6">
+          <div className="container mx-auto">
+            <div className="flex items-center justify-between">
+              <Link to="/dashboard" className="flex items-center gap-3">
+                <ArrowLeft className="w-5 h-5 text-purple-600" />
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-violet-600 rounded-lg flex items-center justify-center">
+                    <Zap className="text-white w-5 h-5" />
+                  </div>
+                  <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-violet-600 bg-clip-text text-transparent">
+                    PDelivery
+                  </span>
+                </div>
+              </Link>
+            </div>
+          </div>
+        </header>
+
+        {/* Upgrade Plans */}
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="w-full max-w-6xl">
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold text-gray-800 mb-4">
+                Escolha seu Plano
+              </h1>
+              <p className="text-gray-600">
+                Upgrade sua conta para acessar recursos premium
+              </p>
+              {subscription.tier && (
+                <Badge variant="outline" className="mt-2">
+                  Plano atual: {subscription.tier.toUpperCase()}
+                </Badge>
+              )}
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-6">
+              {Object.entries(plans).map(([key, plan]) => {
+                const Icon = plan.icon;
+                const isCurrentPlan = subscription.tier === key;
+                const isUpgrade = !subscription.tier || (subscription.tier === 'start' && key !== 'start') || (subscription.tier === 'pro' && key === 'premium');
+                
+                return (
+                  <Card key={key} className={`relative ${plan.popular ? 'ring-2 ring-purple-500 shadow-xl' : 'shadow-lg'} ${isCurrentPlan ? 'ring-2 ring-green-500' : ''}`}>
+                    {plan.popular && (
+                      <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                        <Badge className="bg-purple-500 text-white">Mais Popular</Badge>
+                      </div>
+                    )}
+                    {isCurrentPlan && (
+                      <div className="absolute -top-3 right-4">
+                        <Badge className="bg-green-500 text-white">Seu Plano</Badge>
+                      </div>
+                    )}
+                    
+                    <CardHeader className="text-center">
+                      <div className={`w-12 h-12 bg-gradient-to-r ${plan.color} rounded-lg flex items-center justify-center mx-auto mb-4`}>
+                        <Icon className="text-white w-6 h-6" />
+                      </div>
+                      <CardTitle className="text-2xl">{plan.name}</CardTitle>
+                      <div className="text-3xl font-bold text-gray-800">
+                        R$ {plan.price}
+                        <span className="text-sm font-normal text-gray-500">/mês</span>
+                      </div>
+                    </CardHeader>
+                    
+                    <CardContent>
+                      <ul className="space-y-3 mb-6">
+                        {plan.features.map((feature, index) => (
+                          <li key={index} className="flex items-center gap-2">
+                            <Check className="w-4 h-4 text-green-500" />
+                            <span className="text-sm text-gray-600">{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      
+                      <Button
+                        onClick={() => handleUpgrade(key)}
+                        disabled={loading || isCurrentPlan}
+                        className={`w-full ${plan.popular ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
+                        variant={isCurrentPlan ? 'outline' : plan.popular ? 'default' : 'outline'}
+                      >
+                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {isCurrentPlan ? 'Plano Atual' : isUpgrade ? `Upgrade para ${plan.name}` : `Selecionar ${plan.name}`}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-purple-50 flex flex-col">
       {/* Header */}
@@ -188,6 +350,16 @@ export default function Auth() {
                 </span>
               </div>
             </Link>
+            
+            {user && (
+              <Button
+                onClick={() => setShowUpgrade(true)}
+                variant="outline"
+                className="text-purple-600 border-purple-300 hover:bg-purple-50"
+              >
+                Ver Planos
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -272,7 +444,10 @@ export default function Auth() {
                         <SelectContent>
                           {Object.entries(plans).map(([key, plan]) => (
                             <SelectItem key={key} value={key}>
-                              {plan.name} - R$ {plan.price}/mês
+                              <div className="flex items-center gap-2">
+                                {plan.popular && <Badge variant="secondary" className="text-xs">Popular</Badge>}
+                                {plan.name} - R$ {plan.price}/mês
+                              </div>
                             </SelectItem>
                           ))}
                         </SelectContent>
