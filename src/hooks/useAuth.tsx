@@ -32,22 +32,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   const checkSubscription = async () => {
-    if (!session) return;
+    if (!session) {
+      console.log('No session available for subscription check');
+      return;
+    }
 
     try {
+      console.log('Checking subscription status...');
       const { data, error } = await supabase.functions.invoke('check-subscription', {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error checking subscription:', error);
+        throw error;
+      }
 
-      setSubscription({
+      console.log('Subscription check result:', data);
+
+      const newSubscription = {
         subscribed: data.subscribed || false,
         tier: data.subscription_tier || null,
         end: data.subscription_end || null,
-      });
+      };
+
+      console.log('Setting subscription state:', newSubscription);
+      setSubscription(newSubscription);
+
+      // Se havia problema de assinatura e agora está ativa, mostrar sucesso
+      if (data.subscribed && data.subscription_tier) {
+        console.log(`Assinatura ativa detectada: plano ${data.subscription_tier.toUpperCase()}`);
+      }
     } catch (error) {
       console.error('Error checking subscription:', error);
     }
@@ -57,20 +74,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Configurar listener de mudanças de auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.id);
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
 
         if (event === 'SIGNED_IN' && session) {
+          // Aguardar um pouco e verificar assinatura
           setTimeout(() => {
             checkSubscription();
-          }, 0);
+          }, 1000);
+        }
+
+        if (event === 'SIGNED_OUT') {
+          setSubscription({
+            subscribed: false,
+            tier: null,
+            end: null,
+          });
         }
       }
     );
 
     // Verificar sessão existente
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Initial session check:', session?.user?.id);
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -82,6 +110,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Verificação periódica da assinatura
+  useEffect(() => {
+    if (!session || !user) return;
+
+    const interval = setInterval(() => {
+      console.log('Periodic subscription check...');
+      checkSubscription();
+    }, 30000); // A cada 30 segundos
+
+    return () => clearInterval(interval);
+  }, [session, user]);
 
   const cleanupAuthState = () => {
     localStorage.removeItem('supabase.auth.token');

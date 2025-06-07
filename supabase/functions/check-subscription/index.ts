@@ -66,30 +66,56 @@ serve(async (req) => {
     const customerId = customers.data[0].id;
     logStep("Found Stripe customer", { customerId });
 
-    const subscriptions = await stripe.subscriptions.list({
+    // Buscar todas as assinaturas (ativas e inativas) para debug
+    const allSubscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      limit: 10,
+    });
+    
+    logStep("All subscriptions found", { 
+      total: allSubscriptions.data.length,
+      subscriptions: allSubscriptions.data.map(sub => ({
+        id: sub.id,
+        status: sub.status,
+        current_period_end: sub.current_period_end,
+        items: sub.items.data.map(item => ({
+          price_id: item.price.id,
+          amount: item.price.unit_amount,
+          interval: item.price.recurring?.interval
+        }))
+      }))
+    });
+
+    const activeSubscriptions = await stripe.subscriptions.list({
       customer: customerId,
       status: "active",
       limit: 1,
     });
     
-    const hasActiveSub = subscriptions.data.length > 0;
+    const hasActiveSub = activeSubscriptions.data.length > 0;
     let subscriptionTier = null;
     let subscriptionEnd = null;
 
     if (hasActiveSub) {
-      const subscription = subscriptions.data[0];
+      const subscription = activeSubscriptions.data[0];
       subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
       
       const priceId = subscription.items.data[0].price.id;
       const price = await stripe.prices.retrieve(priceId);
       const amount = price.unit_amount || 0;
       
-      if (amount <= 4990) {
-        subscriptionTier = "start";
-      } else if (amount <= 6990) {
-        subscriptionTier = "pro";
-      } else {
+      logStep("Price details", { priceId, amount, currency: price.currency });
+      
+      // Mapeamento baseado nos valores dos planos definidos na aplicação
+      if (amount >= 9990) { // R$ 99,90 Premium
         subscriptionTier = "premium";
+      } else if (amount >= 6990) { // R$ 69,90 Pro
+        subscriptionTier = "pro";
+      } else if (amount >= 4990) { // R$ 49,90 Start
+        subscriptionTier = "start";
+      } else {
+        // Fallback baseado no preço
+        subscriptionTier = "pro"; // Assumir pro como padrão para valores menores
       }
       
       logStep("Determined subscription tier", { priceId, amount, subscriptionTier });
@@ -97,7 +123,8 @@ serve(async (req) => {
       logStep("No active subscription found");
     }
 
-    await supabaseClient.from("subscribers").upsert({
+    // Atualizar banco de dados
+    const upsertData = {
       email: user.email,
       user_id: user.id,
       stripe_customer_id: customerId,
@@ -105,14 +132,23 @@ serve(async (req) => {
       subscription_tier: subscriptionTier,
       subscription_end: subscriptionEnd,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'email' });
+    };
+
+    logStep("Upserting subscription data", upsertData);
+
+    await supabaseClient.from("subscribers").upsert(upsertData, { onConflict: 'email' });
 
     logStep("Updated database with subscription info", { subscribed: hasActiveSub, subscriptionTier });
     
     return new Response(JSON.stringify({
       subscribed: hasActiveSub,
       subscription_tier: subscriptionTier,
-      subscription_end: subscriptionEnd
+      subscription_end: subscriptionEnd,
+      debug: {
+        customer_id: customerId,
+        total_subscriptions: allSubscriptions.data.length,
+        active_subscriptions: activeSubscriptions.data.length
+      }
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
