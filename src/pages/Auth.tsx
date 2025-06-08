@@ -88,6 +88,30 @@ export default function Auth() {
     }
   };
 
+  const createCheckoutSession = async (plan: string, userSession: any) => {
+    console.log('Criando sessão de checkout para plano:', plan);
+    
+    const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout', {
+      body: { plan },
+      headers: {
+        Authorization: `Bearer ${userSession.access_token}`,
+      },
+    });
+
+    if (checkoutError) {
+      console.error('Erro no checkout:', checkoutError);
+      throw new Error('Erro ao processar pagamento: ' + checkoutError.message);
+    }
+
+    if (!checkoutData?.url) {
+      console.error('URL de checkout não encontrada:', checkoutData);
+      throw new Error('Erro ao obter URL de pagamento');
+    }
+
+    console.log('Checkout criado com sucesso:', checkoutData.url);
+    return checkoutData.url;
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -120,7 +144,6 @@ export default function Auth() {
         } else {
           toast.error(error.message);
         }
-        setLoading(false);
         return;
       }
 
@@ -128,54 +151,60 @@ export default function Auth() {
 
       if (data.user) {
         try {
-          console.log('Criando checkout para plano:', selectedPlan);
+          console.log('Aguardando estabelecimento da sessão...');
           
-          // Aguardar um pouco para garantir que a sessão esteja disponível
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          // Aguardar mais tempo para garantir que a sessão esteja estabelecida
+          await new Promise(resolve => setTimeout(resolve, 3000));
           
-          // Obter a sessão mais recente
-          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+          // Obter a sessão mais recente com retry
+          let sessionData = null;
+          let attempts = 0;
+          const maxAttempts = 3;
           
-          if (sessionError || !sessionData.session) {
-            console.error('Erro de sessão:', sessionError);
-            toast.error('Conta criada com sucesso! Faça login e tente novamente o checkout.');
-            setLoading(false);
-            return;
-          }
-
-          // Criar checkout do Stripe
-          const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout', {
-            body: { plan: selectedPlan },
-            headers: {
-              Authorization: `Bearer ${sessionData.session.access_token}`,
-            },
-          });
-
-          if (checkoutError) {
-            console.error('Erro no checkout:', checkoutError);
-            toast.error('Conta criada! Erro ao processar pagamento: ' + checkoutError.message);
-            setLoading(false);
-            return;
-          }
-
-          console.log('Checkout criado com sucesso:', checkoutData);
-
-          // Verificar se temos a URL do checkout
-          if (checkoutData?.url) {
-            console.log('Redirecionando para:', checkoutData.url);
-            toast.success('Conta criada! Redirecionando para pagamento...');
+          while (!sessionData && attempts < maxAttempts) {
+            attempts++;
+            console.log(`Tentativa ${attempts} de obter sessão...`);
             
-            // Redirecionar para o checkout
-            setTimeout(() => {
-              window.location.href = checkoutData.url;
-            }, 1000);
-          } else {
-            console.error('URL de checkout não encontrada:', checkoutData);
-            toast.error('Conta criada! Erro ao obter URL de pagamento');
+            const { data: session, error: sessionError } = await supabase.auth.getSession();
+            
+            if (sessionError) {
+              console.error(`Erro na tentativa ${attempts}:`, sessionError);
+              if (attempts === maxAttempts) {
+                throw new Error('Não foi possível estabelecer sessão');
+              }
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              continue;
+            }
+            
+            if (session.session) {
+              sessionData = session;
+              break;
+            }
+            
+            if (attempts < maxAttempts) {
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
           }
+
+          if (!sessionData?.session) {
+            toast.success('Conta criada com sucesso! Faça login para continuar com o checkout.');
+            return;
+          }
+
+          console.log('Sessão estabelecida, criando checkout...');
+          
+          const checkoutUrl = await createCheckoutSession(selectedPlan, sessionData.session);
+          
+          toast.success('Conta criada! Redirecionando para pagamento...');
+          
+          // Aguardar um pouco antes de redirecionar
+          setTimeout(() => {
+            window.open(checkoutUrl, '_blank');
+          }, 1000);
+          
         } catch (checkoutError) {
           console.error('Erro durante processo de checkout:', checkoutError);
-          toast.success('Conta criada com sucesso! Erro no checkout - tente fazer login e acessar novamente.');
+          toast.success('Conta criada com sucesso! ' + (checkoutError as Error).message);
         }
       }
     } catch (error) {

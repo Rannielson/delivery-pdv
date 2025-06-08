@@ -2,9 +2,10 @@
 import { useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Loader2, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -20,16 +21,47 @@ export default function ProtectedRoute({ children, subscriptionRequired }: Prote
     }
   }, [user, loading]);
 
-  const handleRefreshSubscription = async () => {
-    console.log('Manual subscription refresh requested');
-    toast.info('Verificando assinatura...');
+  const handleUpgradeClick = async () => {
+    if (!user) {
+      toast.error('Usuário não autenticado');
+      return;
+    }
+
+    console.log('Iniciando processo de upgrade para plano:', subscriptionRequired);
+    toast.info('Redirecionando para checkout...');
     
     try {
-      await checkSubscription();
-      toast.success('Status da assinatura atualizado!');
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !sessionData.session) {
+        console.error('Erro de sessão:', sessionError);
+        toast.error('Erro de autenticação. Faça login novamente.');
+        return;
+      }
+
+      const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout', {
+        body: { plan: subscriptionRequired },
+        headers: {
+          Authorization: `Bearer ${sessionData.session.access_token}`,
+        },
+      });
+
+      if (checkoutError) {
+        console.error('Erro no checkout:', checkoutError);
+        toast.error('Erro ao processar checkout: ' + checkoutError.message);
+        return;
+      }
+
+      if (checkoutData?.url) {
+        console.log('Redirecionando para checkout:', checkoutData.url);
+        window.open(checkoutData.url, '_blank');
+      } else {
+        console.error('URL de checkout não encontrada:', checkoutData);
+        toast.error('Erro ao obter URL de checkout');
+      }
     } catch (error) {
-      console.error('Error refreshing subscription:', error);
-      toast.error('Erro ao verificar assinatura. Tente novamente.');
+      console.error('Erro durante processo de checkout:', error);
+      toast.error('Erro inesperado ao processar checkout');
     }
   };
 
@@ -56,6 +88,7 @@ export default function ProtectedRoute({ children, subscriptionRequired }: Prote
       <div className="min-h-screen flex items-center justify-center p-6">
         <Card className="max-w-md">
           <CardContent className="text-center p-8">
+            <Crown className="w-16 h-16 mx-auto mb-4 text-purple-600" />
             <h2 className="text-xl font-semibold mb-4">Assinatura Necessária</h2>
             <p className="text-gray-600 mb-4">
               Esta funcionalidade requer uma assinatura ativa do plano {subscriptionRequired.toUpperCase()}.
@@ -65,18 +98,18 @@ export default function ProtectedRoute({ children, subscriptionRequired }: Prote
             </p>
             <div className="flex flex-col gap-3">
               <Button
-                onClick={handleRefreshSubscription}
+                onClick={handleUpgradeClick}
+                className="bg-purple-600 text-white hover:bg-purple-700 flex items-center gap-2"
+              >
+                <Crown className="w-4 h-4" />
+                Upgrade para {subscriptionRequired.toUpperCase()}
+              </Button>
+              <Button
+                onClick={() => checkSubscription()}
                 variant="outline"
                 className="flex items-center gap-2"
               >
-                <RefreshCw className="w-4 h-4" />
-                Verificar Assinatura
-              </Button>
-              <Button
-                onClick={() => window.location.href = '/auth'}
-                className="bg-purple-600 text-white hover:bg-purple-700"
-              >
-                Assinar Agora
+                Verificar Status da Assinatura
               </Button>
             </div>
           </CardContent>
@@ -104,6 +137,7 @@ export default function ProtectedRoute({ children, subscriptionRequired }: Prote
         <div className="min-h-screen flex items-center justify-center p-6">
           <Card className="max-w-md">
             <CardContent className="text-center p-8">
+              <Crown className="w-16 h-16 mx-auto mb-4 text-purple-600" />
               <h2 className="text-xl font-semibold mb-4">Upgrade Necessário</h2>
               <p className="text-gray-600 mb-4">
                 Esta funcionalidade requer o plano {subscriptionRequired.toUpperCase()}.
@@ -113,18 +147,18 @@ export default function ProtectedRoute({ children, subscriptionRequired }: Prote
               </p>
               <div className="flex flex-col gap-3">
                 <Button
-                  onClick={handleRefreshSubscription}
+                  onClick={handleUpgradeClick}
+                  className="bg-purple-600 text-white hover:bg-purple-700 flex items-center gap-2"
+                >
+                  <Crown className="w-4 h-4" />
+                  Upgrade para {subscriptionRequired.toUpperCase()}
+                </Button>
+                <Button
+                  onClick={() => checkSubscription()}
                   variant="outline"
                   className="flex items-center gap-2"
                 >
-                  <RefreshCw className="w-4 h-4" />
-                  Verificar Assinatura
-                </Button>
-                <Button
-                  onClick={() => window.location.href = '/auth'}
-                  className="bg-purple-600 text-white hover:bg-purple-700"
-                >
-                  Fazer Upgrade
+                  Verificar Status da Assinatura
                 </Button>
               </div>
             </CardContent>
