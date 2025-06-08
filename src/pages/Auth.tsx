@@ -88,13 +88,21 @@ export default function Auth() {
     }
   };
 
-  const createCheckoutSession = async (plan: string, userSession: any) => {
+  const createCheckoutSession = async (plan: string) => {
     console.log('Criando sessão de checkout para plano:', plan);
     
+    // Obter a sessão atual
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError || !sessionData.session) {
+      console.error('Erro de sessão:', sessionError);
+      throw new Error('Erro de autenticação. Tente novamente.');
+    }
+
     const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout', {
       body: { plan },
       headers: {
-        Authorization: `Bearer ${userSession.access_token}`,
+        Authorization: `Bearer ${sessionData.session.access_token}`,
       },
     });
 
@@ -148,63 +156,24 @@ export default function Auth() {
       }
 
       console.log('Usuário criado com sucesso:', data.user?.id);
+      toast.success('Conta criada com sucesso! Redirecionando para pagamento...');
 
       if (data.user) {
         try {
           console.log('Aguardando estabelecimento da sessão...');
           
-          // Aguardar mais tempo para garantir que a sessão esteja estabelecida
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          // Aguardar um pouco para garantir que a sessão esteja estabelecida
+          await new Promise(resolve => setTimeout(resolve, 2000));
           
-          // Obter a sessão mais recente com retry
-          let sessionData = null;
-          let attempts = 0;
-          const maxAttempts = 3;
+          console.log('Criando checkout para plano:', selectedPlan);
+          const checkoutUrl = await createCheckoutSession(selectedPlan);
           
-          while (!sessionData && attempts < maxAttempts) {
-            attempts++;
-            console.log(`Tentativa ${attempts} de obter sessão...`);
-            
-            const { data: session, error: sessionError } = await supabase.auth.getSession();
-            
-            if (sessionError) {
-              console.error(`Erro na tentativa ${attempts}:`, sessionError);
-              if (attempts === maxAttempts) {
-                throw new Error('Não foi possível estabelecer sessão');
-              }
-              await new Promise(resolve => setTimeout(resolve, 2000));
-              continue;
-            }
-            
-            if (session.session) {
-              sessionData = session;
-              break;
-            }
-            
-            if (attempts < maxAttempts) {
-              await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-          }
-
-          if (!sessionData?.session) {
-            toast.success('Conta criada com sucesso! Faça login para continuar com o checkout.');
-            return;
-          }
-
-          console.log('Sessão estabelecida, criando checkout...');
-          
-          const checkoutUrl = await createCheckoutSession(selectedPlan, sessionData.session);
-          
-          toast.success('Conta criada! Redirecionando para pagamento...');
-          
-          // Aguardar um pouco antes de redirecionar
-          setTimeout(() => {
-            window.open(checkoutUrl, '_blank');
-          }, 1000);
+          console.log('Redirecionando para checkout:', checkoutUrl);
+          window.location.href = checkoutUrl;
           
         } catch (checkoutError) {
           console.error('Erro durante processo de checkout:', checkoutError);
-          toast.success('Conta criada com sucesso! ' + (checkoutError as Error).message);
+          toast.error('Conta criada, mas erro no checkout: ' + (checkoutError as Error).message);
         }
       }
     } catch (error) {
