@@ -60,8 +60,8 @@ export function useCompanyData() {
         const { data: result, error } = await supabase
           .from(tableName)
           .update(data)
-          .eq('id', id)
-          .eq('company_id', companyId)
+          .eq('id' as any, id)
+          .eq('company_id' as any, companyId)
           .select()
           .single();
 
@@ -81,8 +81,8 @@ export function useCompanyData() {
         const { error } = await supabase
           .from(tableName)
           .delete()
-          .eq('id', id)
-          .eq('company_id', companyId);
+          .eq('id' as any, id)
+          .eq('company_id' as any, companyId);
 
         if (error) throw error;
       },
