@@ -14,18 +14,32 @@ export function useOrderStatusMutation() {
 
   const updateOrderStatusMutation = useMutation({
     mutationFn: async ({ orderId, newStatus }: { orderId: string; newStatus: string }) => {
+      console.log("Company ID check:", userProfile?.company_id);
+      
       if (!userProfile?.company_id) {
-        throw new Error("Company ID não encontrado");
+        console.error("Company ID not found in userProfile:", userProfile);
+        throw new Error("Company ID não encontrado. Verifique se você está logado corretamente.");
       }
 
       // Primeiro, buscar o pedido atual para verificar se já foi finalizado
       const { data: currentOrder, error: fetchError } = await supabase
         .from("orders")
-        .select("*")
+        .select("*, company_id")
         .eq("id", orderId)
         .single();
       
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        console.error("Error fetching order:", fetchError);
+        throw fetchError;
+      }
+
+      console.log("Current order company_id:", currentOrder.company_id);
+      console.log("User profile company_id:", userProfile.company_id);
+
+      // Verificar se o pedido pertence à mesma empresa do usuário
+      if (currentOrder.company_id !== userProfile.company_id) {
+        throw new Error("Você não tem permissão para editar este pedido.");
+      }
 
       // Atualizar o status do pedido
       const { data, error } = await supabase
@@ -35,6 +49,7 @@ export function useOrderStatusMutation() {
           updated_at: new Date().toISOString()
         })
         .eq("id", orderId)
+        .eq("company_id", userProfile.company_id)
         .select(`
           *,
           customers(name, phone),
@@ -43,7 +58,10 @@ export function useOrderStatusMutation() {
         `)
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error updating order status:", error);
+        throw error;
+      }
 
       // Se o status mudou para 'finalizado' e não estava finalizado antes
       if (newStatus === 'finalizado' && currentOrder.status !== 'finalizado') {
@@ -53,6 +71,7 @@ export function useOrderStatusMutation() {
           .select("id")
           .eq("order_id", orderId)
           .eq("entry_type", "income")
+          .eq("company_id", userProfile.company_id)
           .single();
 
         if (entryError && entryError.code !== 'PGRST116') { // PGRST116 = não encontrado
@@ -62,6 +81,8 @@ export function useOrderStatusMutation() {
         // Se não existe lançamento, criar um novo
         if (!existingEntry) {
           const totalRevenue = data.total_amount + data.delivery_fee;
+          
+          console.log("Creating financial entry with company_id:", userProfile.company_id);
           
           const { error: insertError } = await supabase
             .from("financial_entries")

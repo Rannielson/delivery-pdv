@@ -12,19 +12,32 @@ export function useCompanyData() {
 
   const companyId = userProfile?.company_id;
 
+  console.log("useCompanyData - Company ID:", companyId);
+  console.log("useCompanyData - User Profile:", userProfile);
+
   // Hook para buscar dados de uma tabela com filtro por company_id
   const useCompanyTable = <T extends TableName>(tableName: T, options?: any) => {
     return useQuery({
       queryKey: [tableName, companyId],
       queryFn: async () => {
-        if (!companyId) return [];
+        if (!companyId) {
+          console.warn(`useCompanyTable: No company ID found for table ${tableName}`);
+          return [];
+        }
+        
+        console.log(`useCompanyTable: Fetching ${tableName} for company ${companyId}`);
         
         const { data, error } = await supabase
           .from(tableName)
           .select('*')
           .eq('company_id', companyId);
 
-        if (error) throw error;
+        if (error) {
+          console.error(`Error fetching ${tableName}:`, error);
+          throw error;
+        }
+        
+        console.log(`useCompanyTable: Found ${data?.length || 0} records for ${tableName}`);
         return data;
       },
       enabled: !!companyId,
@@ -36,7 +49,12 @@ export function useCompanyData() {
   const useCompanyInsert = <T extends TableName>(tableName: T) => {
     return useMutation({
       mutationFn: async (data: any) => {
-        if (!companyId) throw new Error('Company ID não encontrado');
+        if (!companyId) {
+          console.error(`useCompanyInsert: Company ID não encontrado para inserir em ${tableName}`);
+          throw new Error('Company ID não encontrado');
+        }
+
+        console.log(`useCompanyInsert: Inserting into ${tableName} with company_id ${companyId}`);
 
         const { data: result, error } = await supabase
           .from(tableName)
@@ -44,7 +62,12 @@ export function useCompanyData() {
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error(`Error inserting into ${tableName}:`, error);
+          throw error;
+        }
+        
+        console.log(`useCompanyInsert: Successfully inserted into ${tableName}`);
         return result;
       },
       onSuccess: () => {
@@ -57,6 +80,13 @@ export function useCompanyData() {
   const useCompanyUpdate = <T extends TableName>(tableName: T) => {
     return useMutation({
       mutationFn: async ({ id, data }: { id: string; data: any }) => {
+        if (!companyId) {
+          console.error(`useCompanyUpdate: Company ID não encontrado para atualizar ${tableName}`);
+          throw new Error('Company ID não encontrado');
+        }
+
+        console.log(`useCompanyUpdate: Updating ${tableName} id ${id} for company ${companyId}`);
+
         const { data: result, error } = await supabase
           .from(tableName)
           .update(data)
@@ -65,7 +95,12 @@ export function useCompanyData() {
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error(`Error updating ${tableName}:`, error);
+          throw error;
+        }
+        
+        console.log(`useCompanyUpdate: Successfully updated ${tableName}`);
         return result;
       },
       onSuccess: () => {
@@ -78,13 +113,25 @@ export function useCompanyData() {
   const useCompanyDelete = <T extends TableName>(tableName: T) => {
     return useMutation({
       mutationFn: async (id: string) => {
+        if (!companyId) {
+          console.error(`useCompanyDelete: Company ID não encontrado para deletar de ${tableName}`);
+          throw new Error('Company ID não encontrado');
+        }
+
+        console.log(`useCompanyDelete: Deleting from ${tableName} id ${id} for company ${companyId}`);
+
         const { error } = await supabase
           .from(tableName)
           .delete()
           .eq('id' as any, id)
           .eq('company_id' as any, companyId);
 
-        if (error) throw error;
+        if (error) {
+          console.error(`Error deleting from ${tableName}:`, error);
+          throw error;
+        }
+        
+        console.log(`useCompanyDelete: Successfully deleted from ${tableName}`);
       },
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: [tableName, companyId] });

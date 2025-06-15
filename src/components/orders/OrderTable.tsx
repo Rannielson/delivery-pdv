@@ -24,6 +24,11 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
   const { data: orders } = useQuery({
     queryKey: ["orders"],
     queryFn: async () => {
+      if (!userProfile?.company_id) {
+        console.warn("No company_id found, skipping orders query");
+        return [];
+      }
+
       const { data, error } = await supabase
         .from("orders")
         .select(`
@@ -32,10 +37,16 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
           neighborhoods(name, delivery_fee),
           payment_methods(name)
         `)
+        .eq("company_id", userProfile.company_id)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      
+      if (error) {
+        console.error("Error fetching orders:", error);
+        throw error;
+      }
       return data;
     },
+    enabled: !!userProfile?.company_id,
   });
 
   const { data: orderItemsData } = useQuery({
@@ -55,26 +66,44 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
   const { data: products } = useQuery({
     queryKey: ["products"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("products").select("*");
+      if (!userProfile?.company_id) {
+        return [];
+      }
+
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("company_id", userProfile.company_id);
+      
       if (error) throw error;
       return data;
     },
+    enabled: !!userProfile?.company_id,
   });
 
   const updateOrderStatusMutation = useMutation({
     mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
+      console.log("OrderTable - Company ID check:", userProfile?.company_id);
+      
       if (!userProfile?.company_id) {
-        throw new Error("Company ID não encontrado");
+        console.error("Company ID not found in userProfile:", userProfile);
+        throw new Error("Company ID não encontrado. Verifique se você está logado corretamente.");
       }
 
       // Primeiro, buscar o pedido atual
       const { data: currentOrder, error: fetchError } = await supabase
         .from("orders")
-        .select("*")
+        .select("*, company_id")
         .eq("id", orderId)
+        .eq("company_id", userProfile.company_id)
         .single();
       
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        console.error("Error fetching order:", fetchError);
+        throw fetchError;
+      }
+
+      console.log("OrderTable - Current order company_id:", currentOrder.company_id);
 
       // Atualizar o status
       const { data, error } = await supabase
@@ -84,6 +113,7 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
           updated_at: new Date().toISOString() 
         })
         .eq("id", orderId)
+        .eq("company_id", userProfile.company_id)
         .select(`
           *,
           customers(name, phone),
@@ -92,7 +122,10 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
         `)
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error updating order status:", error);
+        throw error;
+      }
 
       // Se mudou para finalizado e não estava finalizado antes
       if (status === 'finalizado' && currentOrder.status !== 'finalizado') {
@@ -102,6 +135,7 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
           .select("id")
           .eq("order_id", orderId)
           .eq("entry_type", "income")
+          .eq("company_id", userProfile.company_id)
           .single();
 
         if (entryError && entryError.code !== 'PGRST116') {
@@ -110,6 +144,8 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
 
         if (!existingEntry) {
           const totalRevenue = data.total_amount + data.delivery_fee;
+          
+          console.log("OrderTable - Creating financial entry with company_id:", userProfile.company_id);
           
           const { error: insertError } = await supabase
             .from("financial_entries")
@@ -209,6 +245,22 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
   const handleStatusChange = (orderId: string, newStatus: string) => {
     updateOrderStatusMutation.mutate({ orderId, status: newStatus });
   };
+
+  // Se não há company_id, mostrar mensagem de carregamento ou erro
+  if (!userProfile?.company_id) {
+    return (
+      <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+        <CardHeader>
+          <CardTitle className="text-purple-700">Pedidos Recentes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8">
+            <p className="text-gray-600">Carregando dados da empresa...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">

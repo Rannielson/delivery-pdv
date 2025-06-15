@@ -35,8 +35,11 @@ export default function FinancialEntryForm({ onSuccess }: FinancialEntryFormProp
 
   const createEntryMutation = useMutation({
     mutationFn: async (data: any) => {
+      console.log("FinancialEntryForm - Company ID check:", userProfile?.company_id);
+      
       if (!userProfile?.company_id) {
-        throw new Error("Company ID não encontrado");
+        console.error("Company ID not found in userProfile:", userProfile);
+        throw new Error("Company ID não encontrado. Verifique se você está logado corretamente.");
       }
 
       const entryData = {
@@ -44,20 +47,32 @@ export default function FinancialEntryForm({ onSuccess }: FinancialEntryFormProp
         company_id: userProfile.company_id
       };
 
+      console.log("FinancialEntryForm - Creating entry with data:", entryData);
+
       const { error } = await supabase.from("financial_entries").insert(entryData);
-      if (error) throw error;
+      if (error) {
+        console.error("Error creating financial entry:", error);
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("Lançamento criado com sucesso!");
       onSuccess();
     },
     onError: (error) => {
+      console.error("Erro ao criar lançamento:", error);
       toast.error("Erro ao criar lançamento: " + error.message);
     },
   });
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
+    if (!userProfile?.company_id) {
+      toast.error("Company ID não encontrado. Verifique se você está logado corretamente.");
+      return;
+    }
+
     const formData = new FormData(e.currentTarget);
     
     const { date, time } = formatBrazilDateTime(new Date());
@@ -77,6 +92,15 @@ export default function FinancialEntryForm({ onSuccess }: FinancialEntryFormProp
   };
 
   const { date, time } = formatBrazilDateTime(new Date());
+
+  // Se não há company_id, mostrar mensagem de erro
+  if (!userProfile?.company_id) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-red-600">Erro: Company ID não encontrado. Verifique se você está logado corretamente.</p>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
