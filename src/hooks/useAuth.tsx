@@ -17,6 +17,8 @@ interface AuthContextType {
     end: string | null;
   };
   checkSubscription: () => Promise<void>;
+  userProfile: any;
+  userCompany: any;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,11 +27,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [userCompany, setUserCompany] = useState<any>(null);
   const [subscription, setSubscription] = useState({
     subscribed: false,
     tier: null as string | null,
     end: null as string | null,
   });
+
+  const loadUserData = async (userId: string) => {
+    try {
+      // Carregar perfil do usuário
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (profileError) {
+        console.error('Erro ao carregar perfil:', profileError);
+        return;
+      }
+
+      setUserProfile(profile);
+
+      // Carregar dados da empresa se o usuário tiver uma
+      if (profile?.company_id) {
+        const { data: company, error: companyError } = await supabase
+          .from('companies')
+          .select('*')
+          .eq('id', profile.company_id)
+          .single();
+
+        if (companyError) {
+          console.error('Erro ao carregar empresa:', companyError);
+        } else {
+          setUserCompany(company);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar dados do usuário:', error);
+    }
+  };
 
   const checkSubscription = async () => {
     const currentSession = session || (await supabase.auth.getSession()).data.session;
@@ -63,7 +102,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('Setting subscription state:', newSubscription);
       setSubscription(newSubscription);
 
-      // Se havia problema de assinatura e agora está ativa, mostrar sucesso
       if (data.subscribed && data.subscription_tier) {
         console.log(`Assinatura ativa detectada: plano ${data.subscription_tier.toUpperCase()}`);
       }
@@ -83,13 +121,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
 
         if (event === 'SIGNED_IN' && session) {
-          // Aguardar um pouco e verificar assinatura
+          // Carregar dados do usuário
           setTimeout(() => {
+            loadUserData(session.user.id);
             checkSubscription().catch(console.error);
           }, 1000);
         }
 
         if (event === 'SIGNED_OUT') {
+          setUserProfile(null);
+          setUserCompany(null);
           setSubscription({
             subscribed: false,
             tier: null,
@@ -107,6 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
 
       if (session) {
+        loadUserData(session.user.id);
         checkSubscription().catch(console.error);
       }
     });
@@ -207,6 +249,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loading,
     subscription,
     checkSubscription,
+    userProfile,
+    userCompany,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
