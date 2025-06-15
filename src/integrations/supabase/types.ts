@@ -170,7 +170,7 @@ export type Database = {
       financial_entries: {
         Row: {
           amount: number
-          company_id: string | null
+          company_id: string
           cost_center_id: string | null
           created_at: string
           description: string
@@ -185,7 +185,7 @@ export type Database = {
         }
         Insert: {
           amount: number
-          company_id?: string | null
+          company_id: string
           cost_center_id?: string | null
           created_at?: string
           description: string
@@ -200,7 +200,7 @@ export type Database = {
         }
         Update: {
           amount?: number
-          company_id?: string | null
+          company_id?: string
           cost_center_id?: string | null
           created_at?: string
           description?: string
