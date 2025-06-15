@@ -8,6 +8,7 @@ import { Edit, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useWebhook } from "@/hooks/useWebhook";
+import { useAuth } from "@/hooks/useAuth";
 import OrderExport from "@/components/OrderExport";
 
 interface OrderTableProps {
@@ -18,6 +19,7 @@ interface OrderTableProps {
 export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTableProps) {
   const queryClient = useQueryClient();
   const { sendWebhook } = useWebhook();
+  const { userProfile } = useAuth();
 
   const { data: orders } = useQuery({
     queryKey: ["orders"],
@@ -102,7 +104,7 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
           console.error("Erro ao verificar lançamento:", entryError);
         }
 
-        if (!existingEntry) {
+        if (!existingEntry && userProfile?.company_id) {
           const totalRevenue = data.total_amount + data.delivery_fee;
           
           const { error: insertError } = await supabase
@@ -114,6 +116,7 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
               entry_time: new Date().toTimeString().split(' ')[0].substring(0, 5),
               entry_type: 'income',
               order_id: orderId,
+              company_id: userProfile.company_id,
               notes: 'Lançamento automático de venda'
             });
 

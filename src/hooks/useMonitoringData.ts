@@ -2,11 +2,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useWebhook } from "@/hooks/useWebhook";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 export function useMonitoringData() {
   const queryClient = useQueryClient();
   const { sendWebhook } = useWebhook();
+  const { userProfile } = useAuth();
 
   const { data: orders } = useQuery({
     queryKey: ["monitoring-orders"],
@@ -83,7 +85,7 @@ export function useMonitoringData() {
         }
 
         // Se não existe lançamento, criar um novo
-        if (!existingEntry) {
+        if (!existingEntry && userProfile?.company_id) {
           const totalRevenue = data.total_amount + data.delivery_fee;
           
           const { error: insertError } = await supabase
@@ -95,6 +97,7 @@ export function useMonitoringData() {
               entry_time: new Date().toTimeString().split(' ')[0].substring(0, 5),
               entry_type: 'income',
               order_id: orderId,
+              company_id: userProfile.company_id,
               notes: 'Lançamento automático de venda'
             });
 
@@ -147,6 +150,10 @@ export function useMonitoringData() {
 
   const bulkFinalizeMutation = useMutation({
     mutationFn: async (orderIds: string[]) => {
+      if (!userProfile?.company_id) {
+        throw new Error("Company ID não encontrado");
+      }
+
       // Para cada pedido, verificar e criar lançamento se necessário
       for (const orderId of orderIds) {
         const { data: currentOrder } = await supabase
@@ -176,6 +183,7 @@ export function useMonitoringData() {
                 entry_time: new Date().toTimeString().split(' ')[0].substring(0, 5),
                 entry_type: 'income',
                 order_id: orderId,
+                company_id: userProfile.company_id,
                 notes: 'Lançamento automático de venda (finalização em lote)'
               });
           }

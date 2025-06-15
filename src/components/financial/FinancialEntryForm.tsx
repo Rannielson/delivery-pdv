@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { formatBrazilDateTime } from "@/utils/timezone";
+import { useAuth } from "@/hooks/useAuth";
 
 interface FinancialEntryFormProps {
   onSuccess: () => void;
@@ -17,6 +17,7 @@ interface FinancialEntryFormProps {
 
 export default function FinancialEntryForm({ onSuccess }: FinancialEntryFormProps) {
   const [entryType, setEntryType] = useState<'income' | 'expense'>('expense');
+  const { userProfile } = useAuth();
 
   const { data: expenseCategories } = useQuery({
     queryKey: ["expense-categories"],
@@ -33,7 +34,16 @@ export default function FinancialEntryForm({ onSuccess }: FinancialEntryFormProp
 
   const createEntryMutation = useMutation({
     mutationFn: async (data: any) => {
-      const { error } = await supabase.from("financial_entries").insert(data);
+      if (!userProfile?.company_id) {
+        throw new Error("Company ID não encontrado");
+      }
+
+      const entryData = {
+        ...data,
+        company_id: userProfile.company_id
+      };
+
+      const { error } = await supabase.from("financial_entries").insert(entryData);
       if (error) throw error;
     },
     onSuccess: () => {
