@@ -34,7 +34,7 @@ export function useBulkFinalizeMutation() {
           if (!existingEntry) {
             const totalRevenue = currentOrder.total_amount + currentOrder.delivery_fee;
             
-            await supabase
+            const { error: insertError } = await supabase
               .from("financial_entries")
               .insert({
                 description: `Venda - Pedido #${currentOrder.order_number}`,
@@ -46,6 +46,11 @@ export function useBulkFinalizeMutation() {
                 company_id: userProfile.company_id,
                 notes: 'Lançamento automático de venda (finalização em lote)'
               });
+
+            if (insertError) {
+              console.error("Erro ao criar lançamento financeiro:", insertError);
+              throw insertError;
+            }
           }
         }
       }
@@ -63,11 +68,13 @@ export function useBulkFinalizeMutation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["monitoring-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["financial-entries"] });
       toast.success("Pedidos finalizados e receitas registradas com sucesso!");
     },
-    onError: () => {
-      toast.error("Erro ao finalizar pedidos");
+    onError: (error) => {
+      console.error("Erro ao finalizar pedidos:", error);
+      toast.error("Erro ao finalizar pedidos: " + error.message);
     },
   });
 

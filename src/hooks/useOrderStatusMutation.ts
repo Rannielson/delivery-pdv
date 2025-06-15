@@ -14,6 +14,10 @@ export function useOrderStatusMutation() {
 
   const updateOrderStatusMutation = useMutation({
     mutationFn: async ({ orderId, newStatus }: { orderId: string; newStatus: string }) => {
+      if (!userProfile?.company_id) {
+        throw new Error("Company ID não encontrado");
+      }
+
       // Primeiro, buscar o pedido atual para verificar se já foi finalizado
       const { data: currentOrder, error: fetchError } = await supabase
         .from("orders")
@@ -56,7 +60,7 @@ export function useOrderStatusMutation() {
         }
 
         // Se não existe lançamento, criar um novo
-        if (!existingEntry && userProfile?.company_id) {
+        if (!existingEntry) {
           const totalRevenue = data.total_amount + data.delivery_fee;
           
           const { error: insertError } = await supabase
@@ -75,6 +79,7 @@ export function useOrderStatusMutation() {
           if (insertError) {
             console.error("Erro ao criar lançamento financeiro:", insertError);
             toast.error("Erro ao registrar receita do pedido");
+            throw insertError;
           } else {
             toast.success("Receita registrada automaticamente!");
           }
@@ -85,6 +90,7 @@ export function useOrderStatusMutation() {
     },
     onSuccess: (updatedOrder) => {
       queryClient.invalidateQueries({ queryKey: ["monitoring-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["financial-entries"] });
       
       // Enviar webhook
@@ -114,8 +120,9 @@ export function useOrderStatusMutation() {
       
       toast.success("Status do pedido atualizado com sucesso!");
     },
-    onError: () => {
-      toast.error("Erro ao atualizar status do pedido");
+    onError: (error) => {
+      console.error("Erro ao atualizar status:", error);
+      toast.error("Erro ao atualizar status do pedido: " + error.message);
     },
   });
 

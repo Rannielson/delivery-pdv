@@ -63,6 +63,10 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
 
   const updateOrderStatusMutation = useMutation({
     mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
+      if (!userProfile?.company_id) {
+        throw new Error("Company ID não encontrado");
+      }
+
       // Primeiro, buscar o pedido atual
       const { data: currentOrder, error: fetchError } = await supabase
         .from("orders")
@@ -104,7 +108,7 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
           console.error("Erro ao verificar lançamento:", entryError);
         }
 
-        if (!existingEntry && userProfile?.company_id) {
+        if (!existingEntry) {
           const totalRevenue = data.total_amount + data.delivery_fee;
           
           const { error: insertError } = await supabase
@@ -122,6 +126,7 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
 
           if (insertError) {
             console.error("Erro ao criar lançamento:", insertError);
+            throw insertError;
           } else {
             toast.success("Receita registrada automaticamente!");
           }
@@ -163,6 +168,7 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
       toast.success("Status do pedido atualizado com sucesso!");
     },
     onError: (error) => {
+      console.error("Erro ao atualizar status:", error);
       toast.error("Erro ao atualizar status: " + error.message);
     },
   });
