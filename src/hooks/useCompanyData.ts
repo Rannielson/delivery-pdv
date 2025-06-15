@@ -2,6 +2,9 @@
 import { useAuth } from './useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { Database } from '@/integrations/supabase/types';
+
+type TableName = keyof Database['public']['Tables'];
 
 export function useCompanyData() {
   const { userProfile } = useAuth();
@@ -10,7 +13,7 @@ export function useCompanyData() {
   const companyId = userProfile?.company_id;
 
   // Hook para buscar dados de uma tabela com filtro por company_id
-  const useCompanyTable = (tableName: string, options?: any) => {
+  const useCompanyTable = <T extends TableName>(tableName: T, options?: any) => {
     return useQuery({
       queryKey: [tableName, companyId],
       queryFn: async () => {
@@ -30,7 +33,7 @@ export function useCompanyData() {
   };
 
   // Hook para inserir dados com company_id automático
-  const useCompanyInsert = (tableName: string) => {
+  const useCompanyInsert = <T extends TableName>(tableName: T) => {
     return useMutation({
       mutationFn: async (data: any) => {
         if (!companyId) throw new Error('Company ID não encontrado');
@@ -51,7 +54,7 @@ export function useCompanyData() {
   };
 
   // Hook para atualizar dados
-  const useCompanyUpdate = (tableName: string) => {
+  const useCompanyUpdate = <T extends TableName>(tableName: T) => {
     return useMutation({
       mutationFn: async ({ id, data }: { id: string; data: any }) => {
         const { data: result, error } = await supabase
@@ -72,7 +75,7 @@ export function useCompanyData() {
   };
 
   // Hook para deletar dados
-  const useCompanyDelete = (tableName: string) => {
+  const useCompanyDelete = <T extends TableName>(tableName: T) => {
     return useMutation({
       mutationFn: async (id: string) => {
         const { error } = await supabase
