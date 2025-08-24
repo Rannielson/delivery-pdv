@@ -37,6 +37,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadUserData = async (userId: string) => {
     try {
+      console.log('Loading user data for:', userId);
+      
       // Carregar perfil do usuário
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -49,10 +51,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      setUserProfile(profile);
+      console.log('Profile loaded:', profile);
 
-      // Carregar dados da empresa se o usuário tiver uma
-      if (profile?.company_id) {
+      // Se o perfil não tem company_id, verificar se existe uma empresa para este usuário
+      if (!profile?.company_id) {
+        console.log('Profile has no company_id, checking for existing company...');
+        
+        const { data: existingCompany, error: companyCheckError } = await supabase
+          .from('companies')
+          .select('id')
+          .eq('owner_id', userId)
+          .single();
+
+        if (!companyCheckError && existingCompany) {
+          console.log('Found existing company, updating profile...');
+          // Atualizar o perfil com o company_id
+          const { data: updatedProfile, error: updateError } = await supabase
+            .from('profiles')
+            .update({ company_id: existingCompany.id })
+            .eq('id', userId)
+            .select('*')
+            .single();
+
+          if (!updateError && updatedProfile) {
+            console.log('Profile updated with company_id:', updatedProfile);
+            setUserProfile(updatedProfile);
+            
+            // Carregar dados da empresa
+            const { data: company, error: companyError } = await supabase
+              .from('companies')
+              .select('*')
+              .eq('id', existingCompany.id)
+              .single();
+
+            if (!companyError) {
+              setUserCompany(company);
+            }
+          }
+        } else {
+          console.log('No company found for user, profile remains without company_id');
+          setUserProfile(profile);
+        }
+      } else {
+        setUserProfile(profile);
+
+        // Carregar dados da empresa se o usuário tiver uma
         const { data: company, error: companyError } = await supabase
           .from('companies')
           .select('*')
