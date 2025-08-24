@@ -35,6 +35,13 @@ export default function Monitoring() {
     if (source.droppableId === destination.droppableId) return;
 
     const newStatus = destination.droppableId;
+    
+    // Find current order to check if status is actually different
+    const currentOrder = orders?.find(order => order.id === draggableId);
+    if (currentOrder?.status === newStatus) {
+      return; // Don't update if status is the same
+    }
+    
     updateOrderStatusMutation.mutate({ orderId: draggableId, newStatus });
   };
 
