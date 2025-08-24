@@ -365,7 +365,7 @@ export type Database = {
       orders: {
         Row: {
           cancellation_reason: string | null
-          company_id: string | null
+          company_id: string
           created_at: string
           customer_id: string
           delivery_fee: number
@@ -380,7 +380,7 @@ export type Database = {
         }
         Insert: {
           cancellation_reason?: string | null
-          company_id?: string | null
+          company_id: string
           created_at?: string
           customer_id: string
           delivery_fee?: number
@@ -395,7 +395,7 @@ export type Database = {
         }
         Update: {
           cancellation_reason?: string | null
-          company_id?: string | null
+          company_id?: string
           created_at?: string
           customer_id?: string
           delivery_fee?: number
