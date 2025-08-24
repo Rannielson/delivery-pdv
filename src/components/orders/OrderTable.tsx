@@ -127,47 +127,8 @@ export default function OrderTable({ onEditOrder, onDeleteOrder }: OrderTablePro
         throw error;
       }
 
-      // Se mudou para finalizado e não estava finalizado antes
-      if (status === 'finalizado' && currentOrder.status !== 'finalizado') {
-        // Verificar se já existe lançamento
-        const { data: existingEntry, error: entryError } = await supabase
-          .from("financial_entries")
-          .select("id")
-          .eq("order_id", orderId)
-          .eq("entry_type", "income")
-          .eq("company_id", userProfile.company_id)
-          .single();
+      // Lançamento financeiro agora é feito via trigger no banco quando status muda para 'finalizado'/'entregue'
 
-        if (entryError && entryError.code !== 'PGRST116') {
-          console.error("Erro ao verificar lançamento:", entryError);
-        }
-
-        if (!existingEntry) {
-          const totalRevenue = data.total_amount + data.delivery_fee;
-          
-          console.log("OrderTable - Creating financial entry with company_id:", userProfile.company_id);
-          
-          const { error: insertError } = await supabase
-            .from("financial_entries")
-            .insert({
-              description: `Venda - Pedido #${data.order_number}`,
-              amount: totalRevenue,
-              entry_date: new Date().toISOString().split('T')[0],
-              entry_time: new Date().toTimeString().split(' ')[0].substring(0, 5),
-              entry_type: 'income',
-              order_id: orderId,
-              company_id: userProfile.company_id,
-              notes: 'Lançamento automático de venda'
-            });
-
-          if (insertError) {
-            console.error("Erro ao criar lançamento:", insertError);
-            throw insertError;
-          } else {
-            toast.success("Receita registrada automaticamente!");
-          }
-        }
-      }
       
       return data;
     },

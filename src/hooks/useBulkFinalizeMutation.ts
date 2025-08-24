@@ -37,40 +37,8 @@ export function useBulkFinalizeMutation() {
 
         console.log("Current order company_id:", currentOrder.company_id);
 
-        if (currentOrder.status !== 'finalizado') {
-          // Verificar se já existe lançamento
-          const { data: existingEntry } = await supabase
-            .from("financial_entries")
-            .select("id")
-            .eq("order_id", orderId)
-            .eq("entry_type", "income")
-            .eq("company_id", userProfile.company_id)
-            .single();
+        // Lançamento financeiro em lote será feito via trigger no banco ao mudar o status
 
-          if (!existingEntry) {
-            const totalRevenue = currentOrder.total_amount + currentOrder.delivery_fee;
-            
-            console.log("Creating bulk financial entry with company_id:", userProfile.company_id);
-            
-            const { error: insertError } = await supabase
-              .from("financial_entries")
-              .insert({
-                description: `Venda - Pedido #${currentOrder.order_number}`,
-                amount: totalRevenue,
-                entry_date: new Date().toISOString().split('T')[0],
-                entry_time: new Date().toTimeString().split(' ')[0].substring(0, 5),
-                entry_type: 'income',
-                order_id: orderId,
-                company_id: userProfile.company_id,
-                notes: 'Lançamento automático de venda (finalização em lote)'
-              });
-
-            if (insertError) {
-              console.error("Erro ao criar lançamento financeiro:", insertError);
-              throw insertError;
-            }
-          }
-        }
       }
 
       // Atualizar todos os pedidos para finalizado

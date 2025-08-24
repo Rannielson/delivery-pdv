@@ -63,49 +63,8 @@ export function useOrderStatusMutation() {
         throw error;
       }
 
-      // Se o status mudou para 'finalizado' e não estava finalizado antes
-      if (newStatus === 'finalizado' && currentOrder.status !== 'finalizado') {
-        // Verificar se já existe lançamento financeiro para este pedido
-        const { data: existingEntry, error: entryError } = await supabase
-          .from("financial_entries")
-          .select("id")
-          .eq("order_id", orderId)
-          .eq("entry_type", "income")
-          .eq("company_id", userProfile.company_id)
-          .single();
+      // Lançamento financeiro agora é feito via trigger no banco quando status muda para 'finalizado'/'entregue'
 
-        if (entryError && entryError.code !== 'PGRST116') { // PGRST116 = não encontrado
-          console.error("Erro ao verificar lançamento existente:", entryError);
-        }
-
-        // Se não existe lançamento, criar um novo
-        if (!existingEntry) {
-          const totalRevenue = data.total_amount + data.delivery_fee;
-          
-          console.log("Creating financial entry with company_id:", userProfile.company_id);
-          
-          const { error: insertError } = await supabase
-            .from("financial_entries")
-            .insert({
-              description: `Venda - Pedido #${data.order_number}`,
-              amount: totalRevenue,
-              entry_date: new Date().toISOString().split('T')[0],
-              entry_time: new Date().toTimeString().split(' ')[0].substring(0, 5),
-              entry_type: 'income',
-              order_id: orderId,
-              company_id: userProfile.company_id,
-              notes: 'Lançamento automático de venda'
-            });
-
-          if (insertError) {
-            console.error("Erro ao criar lançamento financeiro:", insertError);
-            toast.error("Erro ao registrar receita do pedido");
-            throw insertError;
-          } else {
-            toast.success("Receita registrada automaticamente!");
-          }
-        }
-      }
       
       return data;
     },
