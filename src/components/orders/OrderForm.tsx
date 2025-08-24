@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Plus, Minus, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { formatBrazilDateTime } from "@/utils/timezone";
-
+import { useAuth } from "@/hooks/useAuth";
 interface OrderItem {
   product_id: string;
   quantity: number;
@@ -27,6 +27,7 @@ export default function OrderForm() {
   const [deliveryFee, setDeliveryFee] = useState<number>(0);
 
   const queryClient = useQueryClient();
+  const { userProfile } = useAuth();
 
   const { data: customers } = useQuery({
     queryKey: ["customers"],
@@ -191,6 +192,11 @@ export default function OrderForm() {
       return;
     }
 
+    if (!userProfile?.company_id) {
+      toast.error("Empresa não identificada. Faça login novamente.");
+      return;
+    }
+
     createOrderMutation.mutate({
       customer_id,
       neighborhood_id,
@@ -198,7 +204,8 @@ export default function OrderForm() {
       notes: notes || null,
       total_amount: totalAmount,
       delivery_fee: deliveryFee,
-      status: 'pending'
+      status: 'pending',
+      company_id: userProfile.company_id,
     });
   };
 
